@@ -204,6 +204,6 @@ Known consented binding, exactly one unambiguous due slot: 1 confirm full expect
 
 ### Example citation records
 
-Within these independent scenarios: D1 = Achan 2026-11-07 morning self-report at 08:15; D2 = Amma 2026-11-07 morning self-report; D3 = Amma 2026-11-06 morning self-report (decoded from seed); S1 = Achan's confirmed morning Amlodipine 5 mg schedule entry. Persist only viewer-authorized excerpts under the citation projection path in schema.md. D1 time is visible to the owner in askStatus/explain examples, not automatically to a status-only supporter.
+Within these independent scenarios: D1 = Achan 2026-11-07 morning self-report at 08:15; D2 = Amma 2026-11-07 morning self-report; D3 = Amma 2026-11-06 morning self-report (decoded from seed); S1 = Achan's confirmed morning Amlodipine 5 mg schedule entry. Resolve only viewer-authorized excerpts through the version-gated derived record or authorized callable; no separate readable citations collection exists. D1 time is visible to the owner in askStatus/explain examples, not automatically to a status-only supporter.
 
 Provider shapes checked via current Twilio docs in Context7: <https://www.twilio.com/docs/voice/twiml>. Media URLs in TwiML are synthetic invalid placeholders; replace with short-lived provider-fetchable audio, not a private gs:// URL. Never disclose clinical media through a public permanent URL.
