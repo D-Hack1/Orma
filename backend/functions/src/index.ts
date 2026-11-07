@@ -7,6 +7,7 @@ export { logDose, askStatus, answer, explain } from './api';
 export { understand } from './ai';
 export { parsePrescription, confirmPrescription, checkStrip, checkPillbox } from './vision';
 export { voice, sms } from './telephony';
+export { recordingCleanup } from './telephony/cleanup';
 export { doseSweep, retryCall } from './scheduler';
 export { escalate, ackAlert, alertCreated } from './alerts';
 export { sendMessage } from './messages';

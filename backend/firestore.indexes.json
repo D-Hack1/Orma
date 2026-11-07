@@ -1,4 +1,4 @@
 {
   "indexes": [],
-  "fieldOverrides": []
+  "fieldOverrides": [{ "collectionGroup": "recordings", "fieldPath": "cleanupPending", "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }] }]
 }

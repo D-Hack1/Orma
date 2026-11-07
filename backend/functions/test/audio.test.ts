@@ -117,6 +117,15 @@ describe('temporary call URLs', () => {
     call.status = 'active'; call.expiresAt = { toMillis: () => Date.now() - 1 };
     await expect(createCallAudioUrl(prompt, context)).rejects.toThrow();
   });
+  it('permits only the nonclinical Malayalam consent prompt before enrollment consent', async () => {
+    Object.assign(call, { kind: 'consent', state: 'consent', consented: false });
+    const text = 'മരുന്ന് ഓർമ്മിപ്പിക്കുന്ന വിളികൾ സ്വീകരിക്കാൻ സമ്മതമെങ്കിൽ 1 അമർത്തുക.';
+    await synthesizePrivateAudio(text, { language: 'ml', path });
+    await expect(createCallAudioUrl(path, context)).resolves.toBeTypeOf('string');
+    await expect(synthesizePrivateAudio('Private medicine information', { language: 'en', path: path.replace('reply', 'private') })).rejects.toThrow('active consented');
+    call.kind = 'reminder';
+    await expect(createCallAudioUrl(path, context)).rejects.toThrow('active consented');
+  });
 });
 
 it('builds bilingual prompt metadata without cloud requests or false native-review claims', () => {

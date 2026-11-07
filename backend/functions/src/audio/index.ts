@@ -7,6 +7,11 @@ import { MAX_DOWNLOAD_BYTES, mediaBucket, privateMediaPath, readPrivateObject } 
 
 let client: TextToSpeechClient | undefined;
 const inFlight = new Map<string, Promise<{ path: string }>>();
+// Enrollment may play only this nonclinical consent prompt before consent exists.
+const consentHashes = new Set([
+  ['en-IN', 'Press 1 to agree to reminder calls. Press any other key to decline.'],
+  ['ml-IN', 'മരുന്ന് ഓർമ്മിപ്പിക്കുന്ന വിളികൾ സ്വീകരിക്കാൻ സമ്മതമെങ്കിൽ 1 അമർത്തുക.'],
+].map(([language, text]) => createHash('sha256').update(`${language}\0${text}`).digest('hex')));
 
 function languageCode(language: string): string {
   if (language === 'ml') return 'ml-IN';
@@ -26,11 +31,12 @@ function pathContext(path: string) {
   throw new HttpsError('invalid-argument', 'Invalid private audio path.');
 }
 
-async function activeCall(familyId: string, memberId: string, callId: string) {
+async function activeCall(familyId: string, memberId: string, callId: string, contentHash?: string) {
   [familyId, memberId, callId].forEach(value => documentId(value, 'call identifier'));
   const call = (await db.doc(`calls/${callId}`).get()).data();
   const expires = call?.expiresAt?.toMillis?.();
-  if (call?.familyId !== familyId || call?.memberId !== memberId || call?.status !== 'active' || call?.consented !== true ||
+  const enrollment = call?.kind === 'consent' && call?.state === 'consent' && consentHashes.has(contentHash ?? '');
+  if (call?.familyId !== familyId || call?.memberId !== memberId || call?.status !== 'active' || (call?.consented !== true && !enrollment) ||
       typeof expires !== 'number' || expires <= Date.now()) throw new HttpsError('permission-denied', 'No active consented call.');
   return expires;
 }
@@ -50,7 +56,7 @@ export async function synthesizePrivateAudio(text: string, options: { language: 
       const access = await resolveMemberAccess(context.viewerUid, context.familyId, context.memberId);
       Object.assign(tags, { familyId: context.familyId, memberId: context.memberId, viewerUid: context.viewerUid, sharingVersion: String(access.sharing.version ?? 0) });
     } else if (context.type === 'call') {
-      await activeCall(context.familyId, context.memberId, context.callId);
+      await activeCall(context.familyId, context.memberId, context.callId, hash);
       Object.assign(tags, { familyId: context.familyId, memberId: context.memberId, callId: context.callId });
     }
     const file = mediaBucket().file(path);
@@ -89,7 +95,7 @@ export async function synthesizePrivateAudio(text: string, options: { language: 
     if (context.type === 'export') {
       const fresh = await resolveMemberAccess(context.viewerUid, context.familyId, context.memberId);
       if (String(fresh.sharing.version ?? 0) !== tags.sharingVersion) throw new HttpsError('permission-denied', 'Sharing changed during audio generation.');
-    } else if (context.type === 'call') await activeCall(context.familyId, context.memberId, context.callId);
+    } else if (context.type === 'call') await activeCall(context.familyId, context.memberId, context.callId, hash);
     return { path };
   };
   const pending = work();
@@ -102,17 +108,19 @@ export async function createCallAudioUrl(path: string, context: { familyId: stri
   if (audio.type === 'export' || (audio.type === 'call' && (audio.familyId !== context.familyId || audio.memberId !== context.memberId || audio.callId !== context.callId))) {
     throw new HttpsError('permission-denied', 'Audio is not bound to this call.');
   }
-  await activeCall(context.familyId, context.memberId, context.callId);
   const file = mediaBucket().file(path);
   const [metadata] = await file.getMetadata();
+  const contentHash = metadata.metadata?.contentHash;
+  if (typeof contentHash !== 'string') throw new HttpsError('failed-precondition', 'Missing audio content hash.');
+  await activeCall(context.familyId, context.memberId, context.callId, contentHash);
   if (metadata.contentType !== 'audio/mpeg' || !metadata.generation || metadata.metadata?.firebaseStorageDownloadTokens ||
       !(Number(metadata.size) > 0 && Number(metadata.size) <= MAX_DOWNLOAD_BYTES) ||
       (audio.type === 'call' && (metadata.metadata?.familyId !== context.familyId || metadata.metadata?.memberId !== context.memberId || metadata.metadata?.callId !== context.callId))) {
     throw new HttpsError('failed-precondition', 'Invalid call audio metadata.');
   }
-  const sessionExpiry = await activeCall(context.familyId, context.memberId, context.callId);
+  const sessionExpiry = await activeCall(context.familyId, context.memberId, context.callId, contentHash);
   // shortcut: a signed URL remains usable after revocation for at most 30 seconds; use an authenticated proxy for immediate revocation.
   const [url] = await file.getSignedUrl({ version: 'v4', action: 'read', expires: Math.min(Date.now() + 30_000, sessionExpiry), queryParams: { generation: String(metadata.generation) } });
-  await activeCall(context.familyId, context.memberId, context.callId);
+  await activeCall(context.familyId, context.memberId, context.callId, contentHash);
   return url;
 }

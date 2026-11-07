@@ -5,7 +5,7 @@ test('the deployable entry point exposes every independently built endpoint with
   expect(Object.keys(handlers).sort()).toEqual([
     'setSharing', 'logDose', 'askStatus', 'answer', 'explain', 'understand',
     'parsePrescription', 'confirmPrescription', 'checkStrip', 'checkPillbox',
-    'voice', 'sms', 'doseSweep', 'retryCall', 'escalate', 'ackAlert', 'alertCreated',
+    'voice', 'sms', 'recordingCleanup', 'doseSweep', 'retryCall', 'escalate', 'ackAlert', 'alertCreated',
     'sendMessage', 'snooze', 'explainMedicine', 'dailyDigest', 'dailyDigestScheduled',
     'doctorReport', 'downloadMedia', 'flSubmit', 'flAggregate',
   ].sort());
@@ -16,7 +16,7 @@ test('the deployable entry point exposes every independently built endpoint with
 });
 
 test('every caller of the Twilio delivery adapter binds its Secret Manager token', () => {
-  for (const name of ['voice', 'sms', 'retryCall', 'escalate', 'sendMessage', 'dailyDigest', 'dailyDigestScheduled', 'doctorReport'] as const) {
+  for (const name of ['voice', 'sms', 'recordingCleanup', 'retryCall', 'escalate', 'sendMessage', 'dailyDigest', 'dailyDigestScheduled', 'doctorReport'] as const) {
     expect((handlers[name] as any).__endpoint.secretEnvironmentVariables).toContainEqual({ key: 'TWILIO_AUTH_TOKEN' });
   }
 });
