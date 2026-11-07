@@ -11,6 +11,8 @@ import android.service.voice.VoiceInteractionSession
 import android.service.voice.VoiceInteractionSessionService
 import `in`.orma.MainActivity
 import dagger.hilt.android.AndroidEntryPoint
+import android.content.ComponentName
+import android.content.ActivityNotFoundException
 
 class OrmaVoiceInteractionService : VoiceInteractionService()
 
@@ -52,3 +54,13 @@ fun assistantSetupIntent(context: Context): Intent {
     }
     return Intent(Settings.ACTION_VOICE_INPUT_SETTINGS)
 }
+
+fun isOrmaAssistant(context: Context): Boolean {
+    val component = Settings.Secure.getString(context.contentResolver, "voice_interaction_service")
+        ?.let(ComponentName::unflattenFromString)
+    return component?.packageName == context.packageName && component.className == OrmaVoiceInteractionService::class.java.name
+}
+
+fun assistantSettingsIntent(context: Context): Intent =
+    listOf(Settings.ACTION_VOICE_INPUT_SETTINGS, Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS, Settings.ACTION_SETTINGS)
+        .map(::Intent).first { it.resolveActivity(context.packageManager) != null }

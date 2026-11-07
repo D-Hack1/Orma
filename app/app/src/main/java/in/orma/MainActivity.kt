@@ -1,6 +1,8 @@
 package `in`.orma
 
 import android.os.Bundle
+import android.content.Context
+import `in`.orma.core.l10n.AppLanguage
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -12,6 +14,7 @@ import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 open class MainActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: Context) { super.attachBaseContext(AppLanguage.wrap(newBase)) }
     private val model: OrmaViewModel by viewModels()
     private val openSpeak = mutableStateOf(false)
     override fun onCreate(savedInstanceState: Bundle?) {

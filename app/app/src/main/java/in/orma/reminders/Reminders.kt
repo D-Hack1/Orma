@@ -20,6 +20,7 @@ import `in`.orma.R
 import `in`.orma.MainActivity
 import `in`.orma.assistant.AssistActivity
 import `in`.orma.data.*
+import `in`.orma.core.l10n.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -37,9 +38,10 @@ object Reminders {
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
     private fun channel(context: Context) {
+        val strings = AppLanguage.wrap(context)
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(CHANNEL, "Quiet reminders", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "Visual medicine reminders and the Speak shortcut"
+            NotificationChannel(CHANNEL, strings.getString(R.string.quiet_channel), NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = strings.getString(R.string.quiet_channel_description)
                 setSound(null, null); enableVibration(false)
                 lockscreenVisibility = NotificationCompat.VISIBILITY_PRIVATE
             })
@@ -63,14 +65,15 @@ object Reminders {
     fun show(context: Context, memberId: String = "farhan", slot: Slot = Slot.morning, date: String = today()): Boolean {
         if (!permitted(context)) return false
         channel(context)
+        val strings = AppLanguage.wrap(context)
         val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val notification = NotificationCompat.Builder(context, CHANNEL).setSmallIcon(R.drawable.ic_orma)
-            .setContentTitle("Orma demo · ${slot.label}")
-            .setContentText("Sample dose · $date. Record only after taking it.")
+            .setContentTitle(strings.getString(R.string.reminder_title, strings.slotName(slot)))
+            .setContentText(strings.getString(R.string.reminder_body, date))
             .setContentIntent(open).setSilent(true).setAutoCancel(false)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
-            .addAction(0, "Taken", action(context, TAKEN, memberId, slot, date))
-            .addAction(0, "Later · 30 min", action(context, SNOOZE, memberId, slot, date)).build()
+            .addAction(0, strings.getString(R.string.status_taken), action(context, TAKEN, memberId, slot, date))
+            .addAction(0, strings.getString(R.string.later_30), action(context, SNOOZE, memberId, slot, date)).build()
         return post(context, NOTIFICATION_ID, notification)
     }
 
@@ -79,7 +82,7 @@ object Reminders {
         channel(context)
         post(context, NOTIFICATION_ID,
             NotificationCompat.Builder(context, CHANNEL).setSmallIcon(R.drawable.ic_orma)
-                .setContentTitle("Orma · Record checked").setStyle(NotificationCompat.BigTextStyle().bigText(text))
+                .setContentTitle(AppLanguage.wrap(context).getString(R.string.notification_checked)).setStyle(NotificationCompat.BigTextStyle().bigText(text))
                 .setContentText(text).setSilent(true).setAutoCancel(true).setVisibility(NotificationCompat.VISIBILITY_PRIVATE).build())
     }
 
@@ -88,8 +91,8 @@ object Reminders {
         channel(context)
         val speak = PendingIntent.getActivity(context, 1, Intent(context, AssistActivity::class.java).setAction(Intent.ACTION_ASSIST), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         return post(context, 411, NotificationCompat.Builder(context, CHANNEL)
-            .setSmallIcon(R.drawable.ic_orma).setContentTitle("Speak to Orma · പറയൂ")
-            .setContentText("Tap to open your medicine companion").setContentIntent(speak)
+            .setSmallIcon(R.drawable.ic_orma).setContentTitle(AppLanguage.wrap(context).getString(R.string.speak))
+            .setContentText(AppLanguage.wrap(context).getString(R.string.notification_speak_body)).setContentIntent(speak)
             .setSilent(true).setOngoing(true).setVisibility(NotificationCompat.VISIBILITY_PUBLIC).build())
     }
 
@@ -116,6 +119,7 @@ object Reminders {
 class ReminderReceiver : BroadcastReceiver() {
     @Inject lateinit var api: OrmaApi
     override fun onReceive(context: Context, intent: Intent) {
+        val strings = AppLanguage.wrap(context)
         val memberId = intent.getStringExtra("memberId") ?: return
         val slot = intent.getStringExtra("slot")?.let { runCatching { Slot.valueOf(it) }.getOrNull() } ?: return
         val date = intent.getStringExtra("date") ?: return
@@ -124,16 +128,16 @@ class ReminderReceiver : BroadcastReceiver() {
         if (Reminders.isReminder(intent)) {
             if (!recordExists) Reminders.show(context, memberId, slot, date)
         } else if (Reminders.isSnooze(intent)) {
-            if (recordExists) { Reminders.result(context, "A record already exists. Please check it before taking more."); return }
+            if (recordExists) { Reminders.result(context, strings.getString(R.string.notification_duplicate)); return }
             val exact = Reminders.schedule(context, memberId, slot, date, System.currentTimeMillis() + 30 * 60_000)
-            Reminders.result(context, if (exact) "Snoozed for 30 minutes." else "Snoozed. Android may delay the reminder until exact alarms are allowed.")
+            Reminders.result(context, strings.getString(if (exact) R.string.snoozed else R.string.reminder_inexact))
         } else if (Reminders.isTaken(intent)) {
             val pending = goAsync()
             CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                 try {
                     val result = api.logDose(LogRequest(memberId, date, slot, member.expected, source = "notification", by = memberId))
-                    Reminders.result(context, result.reply.textEn)
-                } catch (_: Exception) { Reminders.result(context, "Could not save. Please open Orma to check the record.") }
+                    Reminders.result(context, strings.replyText(result.reply))
+                } catch (_: Exception) { Reminders.result(context, strings.getString(R.string.notification_save_error)) }
                 finally { pending.finish() }
             }
         }

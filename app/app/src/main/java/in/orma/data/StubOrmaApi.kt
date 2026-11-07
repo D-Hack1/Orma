@@ -39,8 +39,9 @@ class StubOrmaApi(
         // Partial doses also block a second unreviewed log: don't overwrite or silently top up.
         if (existing != null) return@withLock LogResult("duplicate_blocked", existing.status,
             Reply("A ${request.slot.label.lowercase()} record already exists for ${member.name}. Please check the record before taking more.",
-                "ഈ മരുന്ന് കഴിച്ചതിന്റെ രേഖയുണ്ട്. വീണ്ടും കഴിക്കുന്നതിന് മുമ്പ് രേഖ പരിശോധിക്കൂ.",
-                listOf(Sentence("${member.name}: ${existing.countTaken} of ${existing.countExpected} recorded at ${existing.at}.", listOf(existing.id)))))
+                "${memberLabelMl(member.id)}: ${slotLabelMl(request.slot)} മരുന്ന് കഴിച്ചതിന്റെ രേഖയുണ്ട്. വീണ്ടും കഴിക്കുന്നതിന് മുമ്പ് രേഖ പരിശോധിക്കൂ.",
+                listOf(Sentence("${member.name}: ${existing.countTaken} of ${existing.countExpected} recorded at ${existing.at}.", listOf(existing.id),
+                    "${memberLabelMl(member.id)}: ${existing.countExpected} ഗുളികകളിൽ ${existing.countTaken} കഴിച്ചതായി ${recordTime(existing.at)} ന് രേഖപ്പെടുത്തി."))))
         val status = when {
             request.countTaken < member.expected -> DoseStatus.partial
             request.source in listOf("nurse", "family") -> DoseStatus.reported
@@ -51,8 +52,9 @@ class StubOrmaApi(
             verifiedEvidence(request.transcript, request.evidence))
         publish(state.value.copy(doses = state.value.doses + record))
         val text = "${member.name}: ${request.countTaken} of ${member.expected} tablets recorded for ${request.slot.label.lowercase()}."
+        val textMl = "${memberLabelMl(member.id)}: ${slotLabelMl(request.slot)} ${member.expected} ഗുളികകളിൽ ${request.countTaken} കഴിച്ചതായി രേഖപ്പെടുത്തി."
         LogResult(if (status == DoseStatus.partial) "partial" else "logged", status,
-            Reply(text, "മരുന്ന് കഴിച്ചതായി രേഖപ്പെടുത്തി.", listOf(Sentence(text, listOf(record.id)))))
+            Reply(text, textMl, listOf(Sentence(text, listOf(record.id), textMl))))
     }
 
     override suspend fun askStatus(memberId: String, date: String, slot: Slot): Reply {
@@ -60,9 +62,10 @@ class StubOrmaApi(
         val record = state.value.doses.firstOrNull { it.memberId == memberId && it.date == date && it.slot == slot }
         if (record == null) return Reply(
             "There is no ${slot.label.lowercase()} record for ${member.name}. Please wait before taking another dose and contact your supporter. This demo cannot send an alert.",
-            "രേഖയില്ല. വീണ്ടും മരുന്ന് കഴിക്കുന്നതിന് മുമ്പ് കാത്തിരിക്കൂ. സഹായിയെ വിളിക്കൂ.")
+            "${memberLabelMl(member.id)}: ${slotLabelMl(slot)} മരുന്നിന്റെ രേഖയില്ല. വീണ്ടും കഴിക്കുന്നതിന് മുമ്പ് കാത്തിരിക്കൂ. സഹായിയെ വിളിക്കൂ. ഈ പരീക്ഷണ പതിപ്പിന് അറിയിപ്പുകൾ അയയ്ക്കാനാവില്ല.")
         val text = "${member.name}: ${record.countTaken} of ${record.countExpected} recorded by ${record.by}, via ${record.source}, at ${record.at}."
-        return Reply(text, "മരുന്ന് കഴിച്ചതിന്റെ രേഖയുണ്ട്.", listOf(Sentence(text, listOf(record.id))))
+        val textMl = "${memberLabelMl(member.id)}: ${record.countExpected} ഗുളികകളിൽ ${record.countTaken} കഴിച്ചതായി ${memberLabelMl(record.by)} ${sourceLabelMl(record.source)} വഴി ${recordTime(record.at)} ന് രേഖപ്പെടുത്തി."
+        return Reply(text, textMl, listOf(Sentence(text, listOf(record.id), textMl)))
     }
 
     override suspend fun explain(memberId: String, date: String, slot: Slot): Reply = askStatus(memberId, date, slot)

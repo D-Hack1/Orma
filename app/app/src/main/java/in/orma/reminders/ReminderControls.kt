@@ -16,6 +16,8 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import `in`.orma.R
 import `in`.orma.core.theme.LargeButton
 import `in`.orma.data.Slot
 import `in`.orma.data.today
@@ -27,16 +29,16 @@ fun NotificationControls(assistantOnly: Boolean = false) {
     var pendingAction by remember { mutableStateOf("demo") }
     fun act(action: String) {
         when (action) {
-            "assistant" -> { Reminders.pinSpeak(context); message = "Speak shortcut added to notifications." }
+            "assistant" -> { message = context.getString(if (Reminders.pinSpeak(context)) R.string.pin_success else R.string.notifications_off) }
             "schedule" -> {
                 val exact = Reminders.schedule(context, "farhan", Slot.morning, today(), System.currentTimeMillis() + 60_000)
-                message = if (exact) "Sample reminder scheduled in one minute." else "Sample reminder scheduled. Android may delay it; allow exact alarms for precise timing."
+                message = context.getString(if (exact) R.string.reminder_scheduled else R.string.reminder_inexact)
             }
-            else -> { Reminders.show(context); message = "Silent sample reminder shown. Try Taken in the notification shade." }
+            else -> { message = context.getString(if (Reminders.show(context)) R.string.reminder_shown else R.string.notifications_off) }
         }
     }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) act(pendingAction) else message = "Notifications are off. You can still record doses using the app."
+        if (granted) act(pendingAction) else message = context.getString(R.string.notifications_off)
     }
     fun request(action: String) {
         pendingAction = action
@@ -44,13 +46,13 @@ fun NotificationControls(assistantOnly: Boolean = false) {
         else if (Build.VERSION.SDK_INT >= 33) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (assistantOnly) LargeButton("Add Speak to notifications", Modifier.fillMaxWidth()) { request("assistant") }
+        if (assistantOnly) LargeButton(stringResource(R.string.pin_speak), Modifier.fillMaxWidth()) { request("assistant") }
         else {
-            LargeButton("Try a silent demo reminder", Modifier.fillMaxWidth()) { request("demo") }
-            LargeButton("Try a reminder in one minute", Modifier.fillMaxWidth()) { request("schedule") }
+            LargeButton(stringResource(R.string.demo_reminder), Modifier.fillMaxWidth()) { request("demo") }
+            LargeButton(stringResource(R.string.minute_reminder), Modifier.fillMaxWidth()) { request("schedule") }
             if (Build.VERSION.SDK_INT >= 31) {
                 TextButton({ context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}"))) }, Modifier.heightIn(min = 64.dp)) {
-                    Text("Allow precise reminder times")
+                    Text(stringResource(R.string.precise_alarms))
                 }
             }
         }

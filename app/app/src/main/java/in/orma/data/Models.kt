@@ -29,7 +29,7 @@ fun today(): String = LocalDate.now(KeralaZone).toString()
     val countTaken: Int, val countExpected: Int, val source: String, val by: String,
     val at: String, val transcript: String = "", val evidence: List<Evidence> = emptyList()
 ) { val id: String get() = "$memberId/$date\u005f${slot.name}" }
-@Serializable data class Sentence(val text: String, val cites: List<String>)
+@Serializable data class Sentence(val text: String, val cites: List<String>, val textMl: String = "")
 @Serializable data class Reply(val textEn: String, val textMl: String = "", val sentences: List<Sentence> = emptyList())
 @Serializable data class LogRequest(
     val memberId: String, val date: String = today(), val slot: Slot, val countTaken: Int,
@@ -43,3 +43,17 @@ fun today(): String = LocalDate.now(KeralaZone).toString()
 
 fun verifiedEvidence(transcript: String, evidence: List<Evidence>): List<Evidence> =
     evidence.filter { it.span.isNotBlank() && transcript.contains(it.span) }
+
+fun memberLabelMl(id: String): String = when (id.lowercase()) {
+    "achan" -> "അച്ഛൻ"; "amma" -> "അമ്മ"; "ammoomma" -> "അമ്മൂമ്മ"
+    "rahul" -> "രാഹുൽ"; "farhan" -> "ഫർഹാൻ"; "anu" -> "അനു"; "sister mini" -> "സിസ്റ്റർ മിനി"; else -> id
+}
+fun slotLabelMl(slot: Slot) = when (slot) { Slot.morning -> "രാവിലെ"; Slot.noon -> "ഉച്ചയ്ക്ക്"; Slot.night -> "രാത്രി" }
+fun sourceLabelMl(source: String) = when (source) { "voice" -> "ശബ്ദം"; "family" -> "കുടുംബം"; "nurse" -> "നഴ്സ്"; "notification" -> "അറിയിപ്പ്"; else -> "ബട്ടൺ" }
+fun statusLabelMl(status: DoseStatus) = when (status) {
+    DoseStatus.confirmed -> "കഴിച്ചു"; DoseStatus.reported -> "മറ്റൊരാൾ രേഖപ്പെടുത്തി"; DoseStatus.partial -> "ഭാഗികമായി കഴിച്ചു"
+    DoseStatus.pending -> "സമയം ആയിട്ടില്ല"; DoseStatus.unknown -> "രേഖയില്ല"
+}
+fun recordTime(at: String): String = runCatching {
+    java.time.Instant.parse(at).atZone(KeralaZone).format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))
+}.getOrDefault(at)

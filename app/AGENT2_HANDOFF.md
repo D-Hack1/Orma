@@ -2,7 +2,7 @@
 
 Source of scope: `worksplit.md` A2.1–A2.16, checkpoints C0–C3, and `plan.md` §18–20.
 
-Current status (2026-11-07): no backend implementation or contracts have been received in Agent One's checkout. `contracts/` contains only `.gitkeep`. Agent Two may be working in another branch/worktree; request its branch and commit before judging implementation progress.
+Current status (2026-11-07, updated 14:06 IST): contracts v1 and the backend implementation have arrived in the updated checkout. Agent Two's response is `backend/AGENT1_HANDOFF.md`; operational setup is in `backend/DEPLOYMENT.md`. Agent One reviewed the handoff and core examples, but has not yet completed wire-model reconciliation, authenticated Android binding or C1–C3 acceptance. Delivery is not the same as live device/provider completion. The checklist below remains the acceptance criteria.
 
 **Do not wait for the entire backend to finish before handing off.** Deliver the contracts first, then the core API, then each tested feature. "Ready for app integration" and "all assigned backend work complete" are different milestones.
 
@@ -14,6 +14,7 @@ Deliver these seven files in `contracts/`:
 - [ ] `api.md`: exact callable/HTTP names, request/response/error JSON, required/optional fields, Firebase region, authentication requirements, and examples for success, missing data, clarification, partial, duplicate and rejected access. Document media upload, supported MIME types/encoding/limits and download access too.
 - [ ] `understand.schema.json`: intent fields, clarification, member/slot/count and verified `evidence[].span` format.
 - [ ] `replies.json`: Malayalam/English answer and Why templates, including Unknown and duplicate protection; identify native-language review status.
+- [ ] Language handoff: agree how selected English/Malayalam reaches each endpoint and cited sentence. The current Android stub has `Reply.textEn` / `textMl` and optional `Sentence.textMl`; keep facts and citations equivalent across languages. A Malayalam screen must not silently receive English-only generated answers.
 - [ ] `phrases.json`: expected results for the demo phrases, group/ambiguous/negative speech and questions, including evidence spans.
 - [ ] `risk-features.md`: fixed feature order, units, scaling, missing-value behavior, means, model/intercept format and contribution units.
 - [ ] `demo-family.json`: consistent demo identities, schedules, consent/sharing, nurse assignments, roster, stock and 30 days of history; keep Farhan's unlinked account separate from the family.
