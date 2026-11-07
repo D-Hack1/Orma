@@ -66,9 +66,10 @@ describe('dose decisions', () => {
   });
 });
 
-it('transaction uses fixed document ID, performs all reads first and blocks replay', async () => {
+it.each([actor, { uid: 'anu', memberId: 'amma', role: 'guardian' } as Actor])('transaction uses fixed document ID, performs all reads first and blocks replay for $role', async caller => {
   const records = new Map<string, unknown>([
     ['families/home/members/amma', { ownerUid: 'amma' }],
+    ['families/home/members/amma/settings/sharing', { guardianId: 'anu', capacityNote: 'Recorded legal guardian' }],
     ['families/home/members/amma/schedule/morning', schedule],
   ]);
   let writing = false;
@@ -82,12 +83,15 @@ it('transaction uses fixed document ID, performs all reads first and blocks repl
     update: (path: string, value: object) => { writing = true; records.set(path, { ...records.get(path) as object, ...value }); },
   };
   const db = { doc: (path: string) => path, collection: (path: string) => path, runTransaction: async (fn: (tx: unknown) => unknown) => { writing = false; return fn(tx); } } as unknown as Firestore;
-  expect((await logDose(db, input, actor)).result).toBe('logged');
-  expect((await logDose(db, input, actor)).result).toBe('duplicate_blocked');
+  const logged = await logDose(db, input, caller);
+  expect(logged.result).toBe('logged');
+  const status = caller.role === 'guardian' ? 'reported' : 'confirmed';
+  expect(logged.status).toBe(status);
+  expect((await logDose(db, input, caller)).result).toBe('duplicate_blocked');
   expect(records.has('families/home/members/amma/doses/2026-11-07_morning')).toBe(true);
   expect((records.get('families/home/members/amma/schedule/morning') as Schedule).medicines[0].stock).toBe(9);
   expect(records.has('alerts/double_home_amma_2026-11-07_morning')).toBe(true);
-  expect(records.get('families/home/views/anu/members/amma/doses/2026-11-07_morning')).toEqual({ date: input.date, slot: input.slot, status: 'confirmed' });
+  expect(records.get('families/home/views/anu/members/amma/doses/2026-11-07_morning')).toEqual({ date: input.date, slot: input.slot, status });
 });
 
 it('count projections obey current per-viewer consent without private evidence', () => {

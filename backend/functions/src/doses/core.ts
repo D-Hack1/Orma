@@ -54,15 +54,16 @@ export function memberPath(key: DoseKey): string {
 
 // Family membership and supporter/nurse assignment are checked by the authenticated wrapper.
 export function hasFullAccess(member: Member, key: DoseKey, actor: Actor): boolean {
-  return (actor.role === 'member' && actor.memberId === key.memberId &&
-    (member.ownerUid === actor.uid || member.uid === actor.uid || member.userId === actor.uid || key.memberId === actor.uid)) ||
-    (actor.role === 'guardian' && member.sharing?.guardianId === actor.uid && !!member.sharing.capacityNote);
+  return actor.memberId === key.memberId && member.ownerUid === actor.uid;
 }
 
 export function assertActor(member: Member, key: DoseKey, actor: Actor): void {
   if (!actor.uid) throw new Error('Unauthenticated');
-  if (actor.role === 'member' || actor.role === 'guardian') {
+  if (actor.role === 'member') {
     if (!hasFullAccess(member, key, actor)) throw new Error('Permission denied');
+  }
+  if (actor.role === 'guardian' && (member.sharing?.guardianId !== actor.uid || !member.sharing.capacityNote?.trim())) {
+    throw new Error('Permission denied');
   }
   if (actor.role === 'nurse' && !member.nurseIds?.includes(actor.uid)) throw new Error('Permission denied');
   if (actor.role === 'device' && (!actor.deviceId || !member.deviceIds?.includes(actor.deviceId))) {

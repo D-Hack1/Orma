@@ -26,3 +26,15 @@ it('does not expose another member alert or private rule', async () => {
   const result = await explain(db, { ...input, kind: 'alert', alertId: 'b' }, { uid: 'anu', role: 'supporter' });
   expect(result.textEn).not.toContain('private');
 });
+it('guardian consent authority does not bypass private risk or alert rules', async () => {
+  const guardian = { uid: 'anu', memberId: input.memberId, role: 'guardian' as const };
+  const sharing = { guardianId: 'anu', capacityNote: 'Recorded legal guardian' };
+  const risk = { contributions: [{ feature: 'askedTwice', value: 7, delta: 1 }] };
+  const records = { [`${base}/settings/sharing`]: sharing, [`${base}/risk/2026-11-07_morning`]: risk,
+    'alerts/a': { familyId: 'home', memberId: 'amma', rule: 'private transcript' } };
+  await expect(explain(fakeDb(records), { ...input, kind: 'risk' }, guardian)).rejects.toThrow('private');
+  const alert = await explain(fakeDb(records), { ...input, kind: 'alert', alertId: 'a' }, guardian);
+  expect(alert.textEn).not.toContain('private');
+  const shared = await explain(fakeDb({ ...records, [`${base}/settings/sharing`]: { ...sharing, risk: true } }), { ...input, kind: 'risk' }, guardian);
+  expect('contributions' in shared && shared.contributions).toEqual([]);
+});

@@ -57,6 +57,13 @@ describe('grounded replies', () => {
   it('count sharing never grants evidence access', () => {
     expect(buildFactPack(key, { ...member, sharing: { counts: true } }, supporter, dose).facts.map(f => f.kind)).toEqual(['status', 'count']);
   });
+  it('guardian authority does not grant private counts or evidence', () => {
+    const guardian: Actor = { uid: 'anu', memberId: key.memberId, role: 'guardian' };
+    const sharing = { guardianId: 'anu', capacityNote: 'Recorded legal guardian' };
+    expect(buildFactPack(key, { ...member, sharing }, guardian, dose).facts.map(f => f.kind)).toEqual(['status']);
+    expect(buildFactPack(key, { ...member, sharing: { ...sharing, counts: true } }, guardian, dose).facts.map(f => f.kind)).toEqual(['status', 'count']);
+    expect(buildFactPack(key, { ...member, sharing: { ...sharing, counts: true, perSupporter: { anu: { counts: false } } } }, guardian, dose).facts.map(f => f.kind)).toEqual(['status']);
+  });
   it.each(['confirmed', 'reported', 'partial', 'pending', 'unknown'] as const)('keeps %s meaning in fallback', async status => {
     const answer = await answerFromFacts(buildFactPack(key, member, owner, { ...dose, status }));
     expect(answer.status).toBe(status);
