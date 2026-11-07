@@ -16,17 +16,19 @@ fun today(): String = LocalDate.now(KeralaZone).toString()
 @Serializable data class Member(
     val id: String, val name: String, val relation: String, val mode: String,
     val initials: String, val expected: Int = 3, val stock: Int = 30,
-    val nurseAssigned: Boolean = false
+    val nurseAssigned: Boolean = false, val isOwner: Boolean = false, val canManage: Boolean = false, val awaitingAccount: Boolean = false
 )
 @Serializable data class Evidence(val field: String, val span: String)
 @Serializable data class Understanding(
     val intent: String = "unclear", val transcript: String = "", val memberIds: List<String> = emptyList(),
     val slot: Slot? = null, val countTaken: Int? = null, val evidence: List<Evidence> = emptyList(),
-    val needsClarification: Boolean = true, val question: String = "Please choose who and which dose."
+    val needsClarification: Boolean = true, val question: String = "Please choose who and which dose.",
+    val medicines: List<String> = emptyList(), val snoozeReason: String? = null, val memberActions: List<MemberAction> = emptyList()
 )
+@Serializable data class MemberAction(val memberId: String, val taken: Boolean, val count: Int? = null, val medicines: List<String> = emptyList())
 @Serializable data class DoseRecord(
     val memberId: String, val date: String, val slot: Slot, val status: DoseStatus,
-    val countTaken: Int, val countExpected: Int, val source: String, val by: String,
+    val countTaken: Int?, val countExpected: Int?, val source: String, val by: String,
     val at: String, val transcript: String = "", val evidence: List<Evidence> = emptyList()
 ) { val id: String get() = "$memberId/$date\u005f${slot.name}" }
 @Serializable data class Sentence(val text: String, val cites: List<String>, val textMl: String = "")
@@ -39,7 +41,17 @@ fun today(): String = LocalDate.now(KeralaZone).toString()
 @Serializable data class LogResult(val result: String, val status: DoseStatus, val reply: Reply)
 @Serializable data class Sharing(val counts: Boolean = false, val messages: Boolean = false, val risk: Boolean = false, val nurseNotes: Boolean = false)
 @Serializable data class DemoFixture(val members: List<Member>, val phrases: List<Understanding>)
-@Serializable data class LocalState(val doses: List<DoseRecord> = emptyList(), val sharing: Map<String, Sharing> = emptyMap(), val storageError: Boolean = false)
+@Serializable data class Medicine(val id: String, val name: String, val strength: String = "", val count: Int = 1, val stock: Int = 0, val purpose: String = "", val timeCritical: Boolean = false)
+@Serializable data class DoseSchedule(val memberId: String, val slot: Slot, val time: String, val medicines: List<Medicine>, val afterFood: Boolean = true) {
+    val expected: Int get() = medicines.sumOf { it.count }
+}
+@Serializable data class FamilyContact(val uid: String, val name: String, val phone: String = "", val relation: String = "", val roles: List<String> = emptyList())
+@Serializable data class FamilyChoice(val familyId: String, val name: String, val role: String = "")
+@Serializable data class AccountSession(val loading: Boolean = true, val signedIn: Boolean = false, val uid: String = "", val familyId: String = "",
+    val familyName: String = "", val role: String = "supporter", val deviceMemberIds: List<String> = emptyList(), val families: List<FamilyChoice> = emptyList(),
+    val isDemo: Boolean = false, val problem: String = "", val deviceConfigured: Boolean = false)
+@Serializable data class LocalState(val doses: List<DoseRecord> = emptyList(), val sharing: Map<String, Sharing> = emptyMap(), val storageError: Boolean = false,
+    val members: List<Member> = emptyList(), val schedules: List<DoseSchedule> = emptyList(), val contacts: List<FamilyContact> = emptyList(), val connected: Boolean = false)
 
 fun verifiedEvidence(transcript: String, evidence: List<Evidence>): List<Evidence> =
     evidence.filter { it.span.isNotBlank() && transcript.contains(it.span) }

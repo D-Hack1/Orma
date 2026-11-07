@@ -8,8 +8,9 @@ import { readAuthorizedMedia } from '../platform/media';
 import { confirmSchema, extract, imageInputSchema, matchStrip, pillboxInputSchema, pillboxSchema,
   stripSchema, validateExtraction, type ConfirmInput, type VisionTask } from './core';
 import { geminiVisionProvider } from './provider';
+import { geminiSecrets } from '../platform/genai';
 
-const options = { region: 'asia-south1', enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== 'true', timeoutSeconds: 60 };
+const options = { region: 'asia-south1', enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== 'true', timeoutSeconds: 60, secrets: geminiSecrets };
 function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   const result = schema.safeParse(value);
   if (!result.success) throw new HttpsError('invalid-argument', 'Invalid vision request.');

@@ -54,6 +54,10 @@ service cloud.firestore {
       }
     }
     match /flModels/{version} { allow read: if signedIn(); }
+    match /profiles/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      match /families/{familyId} { allow read: if signedIn() && request.auth.uid == uid; }
+    }
     // Canonical mutations, bindings, calls, alerts, FL updates and projections are server-only.
     match /{document=**} { allow write: if false; }
   }

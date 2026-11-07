@@ -17,7 +17,8 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("boolean", "USE_STUB_API", "true")
+        buildConfigField("boolean", "USE_STUB_API", providers.gradleProperty("ormaStub").getOrElse("false"))
+        buildConfigField("String", "FIREBASE_EMULATOR_HOST", "\"${providers.gradleProperty("ormaHost").getOrElse("")}\"")
     }
     buildFeatures { compose = true; buildConfig = true }
     bundle { language { enableSplit = false } }

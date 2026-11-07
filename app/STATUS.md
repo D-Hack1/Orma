@@ -45,6 +45,19 @@ Updated: 2026-11-07 14:07 IST (Asia/Kolkata). Requested UI/language/microphone/a
 | Working microphone | Prefer configured dictation engine, not first service; remove role-based immediate cancellation; stopListening finalizes words; visible start/listen/process states, partial captions, RMS sound meter and distinct errors | Engine-selection automated test passes; user confirms Pixel speech captions work in both English and Malayalam |
 | Assistant setup button | Show actual selected-service state, capture role request return, refresh on resume, expose direct Android settings fallback and a test button | Real OS UI navigation verified: app button → Android picker → select Orma → Change → return; active service and app status agree |
 
+## Active integration milestone — 2026-11-07
+- User requests integration of both agents' work, persistent device/person setup, distinct family accounts/interfaces, parent-specific medicine names/times, proactive spoken check-ins, 10-minute snooze and family calling/contact. Scope now includes necessary backend operations and contract extensions.
+- Production Firebase project configuration will be supplied by the user at the end. Proceeding against real Auth/Firestore/Functions local emulators; production deployment is not implied.
+- Provided env files inspected without exposing values: Gemini API key and Twilio credentials available. Credentials remain backend-only and ignored. Example phone/URL placeholders will not enable calls.
+- CONTRACT CHANGE (authorized by this product request): add authenticated family creation/pairing, member/profile/device setup and manual schedule configuration; optional bounded `delayMinutes` for snooze. Keep all existing security checks and wire fields compatible. Exact extension details and tests will be recorded with implementation.
+- Pixel currently disconnected from ADB; emulator available. Device testing will continue on the emulator until the Pixel returns.
+
+### Supabase direction change — 14:36 IST
+- User explicitly replaces Firebase with Supabase and supplies new environment files. Supabase is now the integration target; incomplete Firebase adapter/setup changes will be removed from this milestone, while reusing the app setup/voice/schedule UI and backend validation logic.
+- New Supabase URL/server secret verified by read-only checks: Data API reachable, no public tables exposed, email signups enabled, email confirmation required. No account data was listed.
+- The provided `sb_secret_` API key stays in ignored backend configuration. It must never be embedded in Android. Supabase management/database access is still needed to apply the new schema, and a publishable key is needed for the direct Android client.
+- Supabase plugin discovered and suggested as a management connection. Continue preparing SQL/RLS/RPCs and app code while connection is pending.
+
 ## Assistance needed
 - Agent 2 contracts and local setup are received. Next: reconcile v1 wire formats, auth/device bindings, private viewer paths and agreed language output; obtain real project configuration/provider setup for live acceptance.
 - Human QA: Malayalam speech/TTS review, phrases 1–7 spoken on the Pixel, TalkBack and Accessibility Scanner review. The real Pixel locked-phone power-button check has passed.

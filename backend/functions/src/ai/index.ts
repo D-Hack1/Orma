@@ -4,8 +4,9 @@ import { requireAuth, resolveMemberAccess, sharingAllowed } from '../platform/au
 import { db } from '../platform/firebase';
 import { runUnderstanding, understandInputSchema, unclear, type UnderstandContext } from './core';
 import { geminiProvider, openaiProvider } from './providers';
+import { geminiSecrets } from '../platform/genai';
 
-export const understand = onCall({ region: 'asia-south1', enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== 'true', secrets: ['OPENAI_API_KEY'], timeoutSeconds: 30 }, async request => {
+export const understand = onCall({ region: 'asia-south1', enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== 'true', secrets: ['OPENAI_API_KEY', ...geminiSecrets], timeoutSeconds: 30 }, async request => {
   const uid = requireAuth(request);
   const parsed = understandInputSchema.safeParse(request.data);
   if (!parsed.success) throw new HttpsError('invalid-argument', 'Invalid speech input.');

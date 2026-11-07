@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { createGenAi } from '../platform/genai';
 import OpenAI, { toFile } from 'openai';
 import { z } from 'zod';
 import { understandingSchema, type UnderstandProvider, type UnderstandInput, type UnderstandContext } from './core';
@@ -35,7 +36,7 @@ function contextText(input: UnderstandInput, context: UnderstandContext) {
 }
 
 export const geminiProvider: UnderstandProvider = async (input, context, signal) => {
-  const ai = new GoogleGenAI({ vertexai: true, project: process.env.GCLOUD_PROJECT ?? process.env.GOOGLE_CLOUD_PROJECT, location: process.env.VERTEX_LOCATION ?? 'asia-south1' });
+  const ai = createGenAi();
   const parts = [{ text: contextText(input, context) }, ...(input.transcript !== undefined
     ? [{ text: JSON.stringify({ transcript: input.transcript }) }]
     : [{ inlineData: { mimeType: input.mimeType!, data: input.audioBase64! } }])];
@@ -47,6 +48,7 @@ export const geminiProvider: UnderstandProvider = async (input, context, signal)
 };
 
 export const openaiProvider: UnderstandProvider = async (input, context, signal) => {
+  if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY.startsWith('local-')) throw new Error('OpenAI fallback is not configured.');
   const ai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 6000 });
   const transcript = input.transcript ?? (await ai.audio.transcriptions.create({
     model: process.env.OPENAI_TRANSCRIBE_MODEL ?? 'gpt-4o-mini-transcribe',

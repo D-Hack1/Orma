@@ -9,11 +9,13 @@ import dagger.hilt.components.SingletonComponent
 import `in`.orma.data.*
 import kotlinx.serialization.json.Json
 import javax.inject.Singleton
+import `in`.orma.BuildConfig
 
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
     @Provides @Singleton fun provideApi(@ApplicationContext context: Context): OrmaApi {
+        if (!BuildConfig.USE_STUB_API) return FirebaseOrmaApi(context)
         val json = Json { ignoreUnknownKeys = true }
         val fixture = json.decodeFromString<DemoFixture>(context.assets.open("demo-fixture.json").bufferedReader().use { it.readText() })
         val prefs = context.getSharedPreferences("orma-demo", Context.MODE_PRIVATE)

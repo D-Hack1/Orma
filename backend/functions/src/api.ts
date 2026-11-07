@@ -6,6 +6,7 @@ import { logDose as recordDose, doseKeySchema, logDoseSchema, type Actor } from 
 import { askStatus as readStatus, askStatusSchema } from './replies';
 import { explain as readExplanation, explainSchema } from './explain';
 import { geminiAnswerGenerator, persistAnswer } from './answers';
+import { geminiSecrets } from './platform/genai';
 
 function actor(context: MemberAccess): Actor {
   return { uid: context.uid, memberId: context.memberId,
@@ -43,7 +44,7 @@ async function handle(request: CallableRequest, action: 'log' | 'status' | 'expl
   }
 }
 
-const options = { region: 'asia-south1', enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== 'true' };
+const options = { region: 'asia-south1', enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== 'true', secrets: geminiSecrets };
 export const logDose = onCall(options, request => handle(request, 'log'));
 export const askStatus = onCall(options, request => handle(request, 'status'));
 export const answer = onCall(options, request => handle(request, 'status'));

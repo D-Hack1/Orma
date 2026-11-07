@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { createGenAi } from '../platform/genai';
 import { z } from 'zod';
 import { extractionSchema, pillboxSchema, stripSchema, type VisionProvider } from './core';
 
@@ -11,8 +12,7 @@ const prompts = {
 export const geminiVisionProvider: VisionProvider = async (task, image, signal) => {
   const schema = z.toJSONSchema({ prescription: extractionSchema, strip: stripSchema, pillbox: pillboxSchema }[task]);
   delete schema.$schema;
-  const ai = new GoogleGenAI({ vertexai: true, project: process.env.GCLOUD_PROJECT ?? process.env.GOOGLE_CLOUD_PROJECT,
-    location: process.env.VERTEX_LOCATION ?? 'asia-south1' });
+  const ai = createGenAi();
   const result = await ai.models.generateContent({ model: process.env.GEMINI_VISION_MODEL ?? 'gemini-2.5-pro',
     contents: [{ role: 'user', parts: [{ text: 'Extract the requested visible image data only.' },
       { inlineData: { mimeType: image.mimeType, data: image.bytes.toString('base64') } }] }],

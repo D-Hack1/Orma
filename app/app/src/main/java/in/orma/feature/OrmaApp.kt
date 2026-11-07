@@ -48,6 +48,8 @@ import `in`.orma.core.l10n.*
 import `in`.orma.core.theme.*
 import `in`.orma.data.*
 import `in`.orma.reminders.NotificationControls
+import `in`.orma.feature.onboarding.AccountSetupScreen
+import `in`.orma.feature.caregiver.*
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -57,6 +59,10 @@ private fun Context.activity(): Activity? = when (this) {
 
 @Composable
 fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
+    val account by model.session.collectAsStateWithLifecycle()
+    val accountRecords by model.records.collectAsStateWithLifecycle()
+    if (!account.isDemo && (account.loading || !account.signedIn || account.familyId.isBlank())) { AccountSetupScreen(model); return }
+    if (!account.isDemo && !account.deviceConfigured && accountRecords.members.isNotEmpty()) { AccountSetupScreen(model, deviceOnly = true); return }
     val nav = rememberNavController()
     var role by rememberSaveable { mutableStateOf("Supporter") }
     var roleMenu by remember { mutableStateOf(false) }
@@ -69,6 +75,9 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
     val context = LocalContext.current
     val speech = remember { SpeechController(context) }
     val languageTag = if (context.isMalayalam()) "ml-IN" else "en-IN"
+    LaunchedEffect(account.role) {
+        if (!account.isDemo) role = when (account.role) { "assisted" -> "Assisted"; "independent" -> "Independent"; "nurse" -> "Nurse"; else -> "Supporter" }
+    }
     DisposableEffect(Unit) { onDispose { speech.close() } }
     LaunchedEffect(route) { if (route != "speak") speech.stop() }
     LaunchedEffect(openSpeak) {
@@ -91,7 +100,7 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
                     Text(stringResource(R.string.language_switch), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
                 }
                 Box {
-                    IconButton({ roleMenu = true }, Modifier.size(80.dp).testTag("role-switch").semantics { contentDescription = context.getString(R.string.switch_role) }) {
+                    IconButton({ if (account.isDemo) roleMenu = true else nav.navigate("family") }, Modifier.size(80.dp).testTag("role-switch").semantics { contentDescription = context.getString(if (account.isDemo) R.string.switch_role else R.string.family_manage) }) {
                         Icon(Icons.Outlined.Person, null, Modifier.size(32.dp), tint = Forest)
                     }
                     DropdownMenu(roleMenu, { roleMenu = false }) {
@@ -105,8 +114,8 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
                 }
             }
             Text(context.roleName(role), color = Forest, style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(R.string.local_demo), style = MaterialTheme.typography.labelSmall, color = Muted,
-                modifier = Modifier.padding(top = 4.dp, bottom = 10.dp).semantics { contentDescription = context.getString(R.string.demo_disclosure) })
+            Text(stringResource(if (account.isDemo) R.string.local_demo else R.string.connected_server), style = MaterialTheme.typography.labelSmall, color = Muted,
+                modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
         }
     }, bottomBar = {
         NavigationBar(containerColor = Color.White) {
@@ -124,22 +133,22 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
                         "Assisted" -> {
                             PageHeading(stringResource(R.string.assisted_title), stringResource(R.string.assisted_subtitle))
                             LargeButton(stringResource(R.string.speak), Modifier.fillMaxWidth().heightIn(min = 176.dp)) { nav.navigate("speak") }
-                            model.members.filter { it.id in listOf("achan", "amma") }.forEach { member ->
+                            model.members.filter { if (account.isDemo) it.id in listOf("achan", "amma") else it.id in account.deviceMemberIds }.forEach { member ->
                                 MemberCard(member, state, true, { logMember = member; logSlot = it }, { model.explain(member.id, it); explanation = true })
                             }
                         }
                         "Independent" -> {
-                            val member = model.members.first { it.id == "farhan" }
+                            val member = model.members.firstOrNull { if (account.isDemo) it.id == "farhan" else it.isOwner } ?: return@Column
                             PageHeading(stringResource(R.string.independent_title), context.memberName(member.id))
                             Notice(stringResource(R.string.quiet_title), stringResource(R.string.quiet_body))
                             MemberCard(member, state, true, { logMember = member; logSlot = it }, { model.explain(member.id, it); explanation = true })
-                            NotificationControls()
+                            if (account.isDemo) NotificationControls()
                         }
                         else -> {
                             PageHeading(stringResource(if (role == "Nurse") R.string.patients_title else R.string.family_title),
                                 LocalDate.now(KeralaZone).format(DateTimeFormatter.ofPattern("EEEE, d MMMM", context.resources.configuration.locales[0])))
                             if (role == "Supporter") {
-                                val count = state.doses.count { it.date == today() && it.memberId != "farhan" }
+                                val count = state.doses.count { it.date == today() && (!account.isDemo || it.memberId != "farhan") }
                                 Card(colors = CardDefaults.cardColors(containerColor = Forest), shape = RoundedCornerShape(24.dp)) {
                                     Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Text(stringResource(R.string.doses_recorded, count), color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
@@ -147,7 +156,12 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
                                     }
                                 }
                             } else Notice(stringResource(R.string.nurse_heading), stringResource(R.string.nurse_body))
-                            model.members.filter { if (role == "Nurse") it.nurseAssigned else it.id != "farhan" }.forEach { member ->
+                            if (!account.isDemo && role == "Supporter") {
+                                LargeButton(stringResource(R.string.family_manage), Modifier.fillMaxWidth()) { nav.navigate("family") }
+                                LargeButton(stringResource(R.string.configure_medicines), Modifier.fillMaxWidth()) { nav.navigate("schedule") }
+                            }
+                            if (model.members.isEmpty()) Text(stringResource(R.string.no_members), fontSize = 22.sp)
+                            model.members.filter { if (role == "Nurse") it.nurseAssigned else !account.isDemo || it.id != "farhan" }.forEach { member ->
                                 MemberCard(member, state, false, { logMember = member; logSlot = it }, { model.explain(member.id, it, privateView = false); explanation = true })
                             }
                             Notice(stringResource(R.string.consent_title), stringResource(R.string.consent_body))
@@ -156,15 +170,23 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
                 }
             }
             composable("speak") { SpeakScreen(model, conversation, speech, languageTag) }
+            composable("family") { FamilyManagementScreen(model) { nav.navigate("schedule") } }
+            composable("schedule") { ScheduleEditorScreen(model) }
+            composable("contacts") { FamilyContactScreen(model) }
             composable("settings") {
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
                     PageHeading(stringResource(R.string.make_yours), stringResource(R.string.settings_subtitle))
                     AssistantSetupControls()
                     NotificationControls(assistantOnly = true)
+                    if (!account.isDemo) {
+                        LargeButton(stringResource(R.string.family_manage), Modifier.fillMaxWidth()) { nav.navigate("family") }
+                        LargeButton(stringResource(R.string.family_contacts), Modifier.fillMaxWidth()) { nav.navigate("contacts") }
+                        LargeButton(stringResource(R.string.sign_out), Modifier.fillMaxWidth()) { model.signOut() }
+                    }
                     if (role == "Assisted") {
-                        var memberId by rememberSaveable { mutableStateOf("amma") }
+                        var memberId by rememberSaveable { mutableStateOf(if (account.isDemo) "amma" else account.deviceMemberIds.firstOrNull().orEmpty()) }
                         Text(stringResource(R.string.sharing_heading), style = MaterialTheme.typography.titleLarge)
-                        listOf("amma", "achan").forEach { id -> LargeChoice(context.memberName(id), memberId == id) { memberId = id } }
+                        (if (account.isDemo) listOf("amma", "achan") else model.members.filter { it.isOwner }.map { it.id }).forEach { id -> LargeChoice(model.members.firstOrNull { it.id == id }?.name ?: context.memberName(id), memberId == id) { memberId = id } }
                         val sharing = state.sharing[memberId] ?: Sharing()
                         SharingToggle(stringResource(R.string.share_counts), sharing.counts) { model.share(memberId, sharing.copy(counts = it)) }
                         SharingToggle(stringResource(R.string.share_messages), sharing.messages) { model.share(memberId, sharing.copy(messages = it)) }
@@ -172,23 +194,30 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
                         SharingToggle(stringResource(R.string.share_notes), sharing.nurseNotes) { model.share(memberId, sharing.copy(nurseNotes = it)) }
                         Text(stringResource(R.string.sharing_minimum), color = Muted)
                     } else Notice(stringResource(R.string.members_choose), stringResource(R.string.members_choose_body))
-                    Notice(stringResource(R.string.demo_setup), stringResource(R.string.demo_setup_body))
+                    if (account.isDemo) Notice(stringResource(R.string.demo_setup), stringResource(R.string.demo_setup_body))
                 }
             }
         }
     }
     logMember?.let { member ->
-        var count by remember(member.id, logSlot) { mutableIntStateOf(member.expected) }
+        val expected = model.expected(member.id, logSlot)
+        var count by remember(member.id, logSlot) { mutableIntStateOf(expected) }
         ModalBottomSheet(onDismissRequest = { logMember = null }, containerColor = Paper) {
             SheetColumn {
                 Text("${context.memberName(member.id)} · ${context.slotName(logSlot)}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text(stringResource(R.string.record_instructions, member.expected))
-                CountControls(count, member.expected, { count-- }, { count++ })
+                if (expected > 0) {
+                    Text(if (account.isDemo) stringResource(R.string.record_instructions, expected) else stringResource(R.string.count_tablets, expected))
+                    state.schedules.firstOrNull { it.memberId == member.id && it.slot == logSlot }?.medicines?.forEach { Text("${it.name} ${it.strength} · ${it.count}", fontSize = 22.sp) }
+                    CountControls(count, expected, { count-- }, { count++ })
+                } else Text(stringResource(R.string.no_schedule), fontSize = 22.sp)
                 Text(stringResource(R.string.duplicate_instructions), color = Muted)
-                LargeButton(stringResource(R.string.save_record), Modifier.fillMaxWidth(), !conversation.busy) {
+                LargeButton(stringResource(R.string.save_record), Modifier.fillMaxWidth(), !conversation.busy && count > 0) {
                     model.log(listOf(member.id), logSlot, count, source = when (role) { "Supporter" -> "family"; "Nurse" -> "nurse"; else -> "tap" },
                         by = when (role) { "Supporter" -> "Anu"; "Nurse" -> "Sister Mini"; else -> member.id })
                     logMember = null; explanation = true
+                }
+                if (!account.isDemo && expected > 0) LargeButton(stringResource(R.string.snooze_minutes, 10), Modifier.fillMaxWidth()) {
+                    model.snooze(member.id, logSlot, 10); logMember = null; explanation = true
                 }
                 LargeButton(stringResource(R.string.cancel), Modifier.fillMaxWidth()) { logMember = null }
             }

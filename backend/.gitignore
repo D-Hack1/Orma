@@ -6,3 +6,5 @@ functions/lib/
 .env
 .env.*
 !.env.example
+.secret.local
+*.credentials.json

@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { createGenAi } from '../platform/genai';
 import { Timestamp } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { db } from '../platform/firebase';
@@ -6,8 +7,7 @@ import { resolveMemberAccess, type MemberAccess } from '../platform/auth';
 import { type Generator } from '../replies/core';
 
 export const geminiAnswerGenerator: Generator = async (pack, question) => {
-  const ai = new GoogleGenAI({ vertexai: true, project: process.env.GCLOUD_PROJECT ?? process.env.GOOGLE_CLOUD_PROJECT,
-    location: process.env.VERTEX_LOCATION ?? 'asia-south1' });
+  const ai = createGenAi();
   const response = await ai.models.generateContent({
     model: process.env.GEMINI_ANSWER_MODEL ?? 'gemini-2.5-flash',
     contents: JSON.stringify({ question, facts: pack.facts }),

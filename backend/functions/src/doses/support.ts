@@ -32,7 +32,7 @@ export function localInstant(date: string, time: string, zone: string): Date {
   return matches[0];
 }
 
-export function planSnooze(input: { date: string; slot: 'morning' | 'noon' | 'night'; reason: 'not_eaten' | 'not_home' | 'later' },
+export function planSnooze(input: { date: string; slot: 'morning' | 'noon' | 'night'; reason: 'not_eaten' | 'not_home' | 'later'; delayMinutes?: number },
   schedule: SupportSchedule, meals: Record<string, string>, zone: string, now: Date) {
   const due = localInstant(input.date, schedule.time ?? '', zone);
   if (localParts(now, zone).date !== input.date) throw new HttpsError('failed-precondition', 'Only today’s dose can be snoozed.');
@@ -40,7 +40,8 @@ export function planSnooze(input: { date: string; slot: 'morning' | 'noon' | 'ni
     return { allowed: false as const, dueAt: due.toISOString(), textEn: 'This medicine has time-critical instructions. Do not change its timing; ask your pharmacist or care team.',
       textMl: 'ഈ മരുന്നിന് സമയക്രമം പ്രധാനമാണ്. സമയം മാറ്റരുത്; ഫാർമസിസ്റ്റിനോടോ പരിചരണ സംഘത്തോടോ ചോദിക്കുക.' };
   }
-  let remindAt = new Date(now.getTime() + 30 * 60000);
+  if (input.delayMinutes !== undefined && (!Number.isInteger(input.delayMinutes) || input.delayMinutes < 1 || input.delayMinutes > 120)) throw new HttpsError('invalid-argument', 'Snooze must be between 1 and 120 minutes.');
+  let remindAt = new Date(now.getTime() + (input.delayMinutes ?? 30) * 60000);
   if (input.reason === 'not_eaten' && schedule.afterFood) {
     const meal = meals[{ morning: 'breakfast', noon: 'lunch', night: 'dinner' }[input.slot]];
     if (meal && clock.test(meal)) {
@@ -54,7 +55,7 @@ export function planSnooze(input: { date: string; slot: 'morning' | 'noon' | 'ni
     textMl: `${time}-ന് വീണ്ടും ഓർമ്മിപ്പിക്കാം. ഇത് മരുന്ന് കഴിച്ചതായി രേഖപ്പെടുത്തുന്നില്ല.` };
 }
 
-const snoozeSchema = doseKeySchema.extend({ reason: z.enum(['not_eaten', 'not_home', 'later']) }).strict();
+const snoozeSchema = doseKeySchema.extend({ reason: z.enum(['not_eaten', 'not_home', 'later']), delayMinutes: z.number().int().min(1).max(120).optional() }).strict();
 export async function snoozeService(uid: string, raw: unknown, now = new Date()) {
   if (!uid) throw new HttpsError('unauthenticated', 'Sign in first.');
   const parsed = snoozeSchema.safeParse(raw);
