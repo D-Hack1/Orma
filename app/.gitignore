@@ -7,3 +7,7 @@ google-services.json
 *.keystore
 captures/
 .idea/
+tools/wrapper/
+artifacts/
+*-output.log
+hs_err_*.log

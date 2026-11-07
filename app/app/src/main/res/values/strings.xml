@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Orma</string>
+    <string name="speak">Speak to Orma</string>
+    <string name="morning">Morning</string>
+    <string name="noon">Noon</string>
+    <string name="night">Night</string>
+    <string name="listening">Listening…</string>
+    <string name="assistant_description">Your Malayalam medicine companion</string>
+</resources>
