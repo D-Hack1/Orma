@@ -21,10 +21,20 @@
 - Device test pending: no device was listed by `adb devices` during initial inspection.
 
 ## Agent 2 — backend / ml
-- Implementation pending; directory structure is ready.
+- Following the pulled expanded plan (G1–G6 + member-owned sharing), confirmed by the human driver. Android files are unchanged by Agent 2.
+- [x] A2.1 Contracts authored: schema, 26 API examples, 16 phrase fixtures, 31 bilingual templates, synthetic history, and fixed risk feature order. Contract self-check passes; Agent 1 acknowledgement and native Malayalam review are pending (not frozen).
+- [x] A2.2 Firebase Node 22 scaffold, loopback emulators, guarded seed/reset and demo project configuration. Seed/reset verified with 1,046 documents; calls disabled in synthetic fixtures.
+- [~] A2.3 `understand`: Vertex Gemini + OpenAI fallback, deadlines, schema/evidence validation and authenticated device/member checks implemented with provider mocks. Real audio clips/providers not verified; actual audio duration is not decoded.
+- [~] A2.4–A2.6 Core checkpoint: transaction-based dose logging/duplicate audit/stock updates, grounded deterministic replies and validation, status/explanation callables, sharing controls and private projection rules. Explicit date/slot required for status queries. Live Gemini reply wording and answer persistence are not connected.
+- [x] A2.14 Reproducible 30-family/10-round FL simulator; model, metrics and chart in `ml/out/`; eight tests and byte-identical rerun verified. Synthetic FL accuracy 68.36%, centralized 68.92%, local-only 69.35% (local-only wins; no clinical/DP claim).
+- [ ] A2.5b/A2.7–A2.13c/A2.16: vision, telephony, scheduling/escalation/FCM, messaging, refill/snooze, audio, summaries/reports and live FL aggregation are specified but not implemented in this checkpoint.
+- Integration review fixed guardian consent authority bypass: guardians manage consent but do not automatically read private counts, evidence or risk. Regression tests first failed, then passed with the fix.
+- Final verification on Node 22.23.4: TypeScript build, 100 non-emulator tests, 10 Auth/Firestore/Storage emulator tests, contract self-check and whitespace checks pass. ML worker verified eight tests and reproducible artifacts.
+- Deployment/phone OTP/App Check on a device/live AI/Twilio/Malayalam review/Android integration are pending. Transitive dependency advisories remain; do not treat this local checkpoint as production-ready.
 
 ## Contract changes
-- None. Contracts have not been authored or frozen.
+- Initial contracts authored, not frozen/acknowledged. Projection fields aligned to implemented `settings.version` / derived `sharingVersion`; private raw risk factors stay local. Photo observation cannot independently establish ingestion.
 
 ## Checkpoint results
 - Directory structure verified. Build, integration, and device checkpoints are pending.
+- Agent 2 local core checkpoint verified; contracts await Agent 1 acknowledgement, and real app/device/cloud checkpoints C0–C3 are not claimed. Small local commits only; no push.
