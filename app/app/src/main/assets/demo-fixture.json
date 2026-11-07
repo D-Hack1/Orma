@@ -1,0 +1,18 @@
+{
+  "members": [
+    {"id":"achan","name":"Achan","relation":"Father · Home phone","mode":"assisted","initials":"AC","nurseAssigned":true},
+    {"id":"amma","name":"Amma","relation":"Mother · Home phone","mode":"assisted","initials":"AM","nurseAssigned":true},
+    {"id":"ammoomma","name":"Ammoomma","relation":"Grandmother · Keypad phone","mode":"keypad","initials":"AO","expected":2},
+    {"id":"rahul","name":"Rahul","relation":"Brother · Independent","mode":"independent","initials":"RA","expected":1},
+    {"id":"farhan","name":"Farhan","relation":"Independent · No family link","mode":"independent","initials":"FA","expected":1}
+  ],
+  "phrases": [
+    {"intent":"log","transcript":"Njangal randuperum raavile 3 gulika kazhichu","memberIds":["achan","amma"],"slot":"morning","countTaken":3,"evidence":[{"field":"members","span":"randuperum"},{"field":"slot","span":"raavile"},{"field":"count","span":"3"}],"needsClarification":false},
+    {"intent":"log","transcript":"Achan raavile 3 gulika kazhichu","memberIds":["achan"],"slot":"morning","countTaken":3,"evidence":[{"field":"members","span":"Achan"},{"field":"slot","span":"raavile"},{"field":"count","span":"3"}],"needsClarification":false},
+    {"intent":"log","transcript":"Amma uchakku 2 gulika kazhichu","memberIds":["amma"],"slot":"noon","countTaken":2,"evidence":[{"field":"members","span":"Amma"},{"field":"slot","span":"uchakku"},{"field":"count","span":"2"}],"needsClarification":false},
+    {"intent":"log","transcript":"Kazhichu","needsClarification":true,"question":"Who took it: Achan, Amma, or both?"},
+    {"intent":"ask","transcript":"Amma raathri gulika kazhicho?","memberIds":["amma"],"slot":"night","evidence":[{"field":"members","span":"Amma"},{"field":"slot","span":"raathri"}],"needsClarification":false},
+    {"intent":"ask","transcript":"Achan raavile gulika kazhicho?","memberIds":["achan"],"slot":"morning","evidence":[{"field":"members","span":"Achan"},{"field":"slot","span":"raavile"}],"needsClarification":false},
+    {"intent":"why","transcript":"Enthaa angane?","needsClarification":true,"question":"Choose the member and dose you want explained."}
+  ]
+}

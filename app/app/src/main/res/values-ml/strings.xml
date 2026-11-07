@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">ഓർമ്മ</string>
+    <string name="speak_shortcut">പറയൂ</string>
+    <string name="speak">ഓർമ്മയോട് പറയൂ</string>
+    <string name="morning">രാവിലെ</string>
+    <string name="noon">ഉച്ചയ്ക്ക്</string>
+    <string name="night">രാത്രി</string>
+    <string name="listening">കേൾക്കുന്നു…</string>
+    <string name="assistant_description">നിങ്ങളുടെ മരുന്ന് ഓർമ്മ സഹായി</string>
+</resources>

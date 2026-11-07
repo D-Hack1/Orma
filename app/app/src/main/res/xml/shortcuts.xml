@@ -1,0 +1,5 @@
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="speak" android:enabled="true" android:icon="@drawable/ic_orma" android:shortcutShortLabel="@string/speak_shortcut">
+        <intent android:action="android.intent.action.ASSIST" android:targetPackage="in.orma" android:targetClass="in.orma.assistant.AssistActivity" />
+    </shortcut>
+</shortcuts>

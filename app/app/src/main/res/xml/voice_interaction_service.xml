@@ -1,0 +1,6 @@
+<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:sessionService="in.orma.assistant.OrmaSessionService"
+    android:recognitionService="in.orma.assistant.OrmaRecognitionService"
+    android:settingsActivity="in.orma.MainActivity"
+    android:supportsAssist="true"
+    android:supportsLaunchVoiceAssistFromKeyguard="true" />
