@@ -1,20 +1,21 @@
 # Agent 1 progress
 
-Updated: 2026-11-07 13:13 IST (Asia/Kolkata). Tested local demo installed on emulator; live integration pending.
+Updated: 2026-11-07 13:22 IST (Asia/Kolkata). Local demo runs on emulator and Pixel; real Pixel power-button test confirmed; live integration pending.
 
 ## Scope and coordination
 - Agent 1 owns `app/` only. Shared plans, backend and contracts are untouched.
 - Branch: `agent1/app` in the existing checkout; no sibling worktree is created outside the writable workspace.
 - `contracts/` currently contains placeholders only. Local fixtures follow `plan.md` §18–19 and will need reconciliation when Agent 2 publishes contracts.
-- Connected device: `emulator-5554`, Android API 37. A real handset is still required to verify OEM power-button behavior.
+- Connected devices: `emulator-5554` (API 37) and Pixel 6a `35111JEGR07225` (Android 17 / API 37). App installed on both. Pixel power-button behavior confirmed by the user.
+- Agent Two delivery requirements and acceptance evidence are tracked in `app/AGENT2_HANDOFF.md`. Its other branch/worktree must be handed off before implementation can be assessed from this checkout.
 - This file is the app-local status/progress log; update after every implementation or verification milestone.
 
 ## Tasks
 | Task | State | Evidence / remaining work |
 |---|---|---|
-| A1.1 Android scaffold | Verified | Debug APK builds, installs and launches on API 37 emulator; min 26 / target 36 (installed SDK). Kotlin, Compose, Hilt, navigation, serialization, Firebase SDKs |
+| A1.1 Android scaffold | Verified | Debug APK builds, installs and launches on API 37 emulator and physical Pixel 6a; min 26 / target 36. Kotlin, Compose, Hilt, navigation, serialization, Firebase SDKs |
 | A1.2 Accessibility | Partly verified | 64dp actions, wrapping text, semantics, captions, 400ms button debounce, haptics; 200% font visually checked; full TalkBack/Scanner QA pending |
-| A1.3 Assistant spike | Emulator verified | Default voice service active; system ASSIST and simulated long-press power from screen off open Speak. Physical OEM / secure-lock test still required |
+| A1.3 Assistant spike | Pixel + emulator verified | Active voice service on both; user confirms physical Pixel long-press power from locked phone opens Speak. Launcher and persistent-notification fallbacks available |
 | A1.4 API layer | Partial | Persistent local stub and callable transport; no FirebaseOrmaApi adapter until contracts exist |
 | A1.5 Assisted speech | Partial | Android Malayalam SpeechRecognizer + TTS and tap fallback; raw AAC/backend audio processing not yet implemented |
 | A1.6–A1.8 Assisted flow | Local demo verified | Evidence highlighting, clarification, explicit confirmation, group logging, partial and duplicate guard; group flow passes Compose device test |
@@ -38,7 +39,7 @@ Updated: 2026-11-07 13:13 IST (Asia/Kolkata). Tested local demo installed on emu
 
 ## Assistance needed
 - Agent 2: publish contracts and Firebase project configuration before live integration.
-- Human QA: real handset for locked-screen power-button test and Malayalam audio/language review.
+- Human QA: Malayalam speech/TTS review, phrases 1–7 spoken on the Pixel, TalkBack and Accessibility Scanner review. The real Pixel locked-phone power-button check has passed.
 - C: remains nearly full. Current builds use `U:/orma-build-cache` (roughly 8GB still free). Free space on C: before switching back to Android Studio's default cache location.
 
 ## Change log
@@ -67,6 +68,10 @@ Updated: 2026-11-07 13:13 IST (Asia/Kolkata). Tested local demo installed on emu
 - 13:10: airplane-mode + Wi-Fi-off run: saved Farhan's noon dose through the UI, checked one persisted record, repeated the log and saw the duplicate warning. Restored airplane mode off and Wi-Fi on. Cloud resynchronisation is not implemented yet.
 - Packaged the tested debug APK at `app/artifacts/orma-debug.apk`; test/lint evidence and screenshots are in `app/artifacts/` (ignored generated files).
 - Final launch/screenshot helper verified with exit code 0. Emulator is online, font scale is restored to 1.0, and the Supporter home screen is open. This milestone is committed as `feat(app): add offline speech and silent reminder actions`.
+- 13:17–13:18: detected authorized USB Pixel 6a (Android 17 / API 37); installed current app and test APK. Physical dashboard and nurse-assignment smoke tests both pass (**2/2**); screenshot at `artifacts/pixel-home.png`, runner output at `artifacts/pixel-smoke-test-output.log`.
+- Pixel initially retained Google's default assistant after the user's setup attempt. Switched the assistant role to Orma; Android reports `in.orma/.assistant.OrmaVoiceInteractionService`, bound to its session service.
+- User then confirmed: locked Pixel + physical power-button hold opens **Orma's Speak screen**. No automated synthetic key event was used as a substitute for this human result.
+- Added `AGENT2_HANDOFF.md`: seven contract files, Firebase/Auth/client setup and APK certificate fingerprints, core endpoint acceptance tests, call/alert delivery, remaining A2.10–A2.15 requirements and separately identified A2.16 stretch. No backend or shared contract files changed.
 
 ## Latest verification commands / evidence
 - Scratch build: Gradle 8.13 with `-g U:/orma-build-cache --project-cache-dir U:/orma-build-cache/project-cache -PormaBuildRoot=U:/orma-build-cache/build :app:assembleDebug :app:testDebugUnitTest :app:assembleDebugAndroidTest :app:lintDebug --no-daemon`.
@@ -78,7 +83,7 @@ Updated: 2026-11-07 13:13 IST (Asia/Kolkata). Tested local demo installed on emu
 ## Checkpoint C0 / assistant result
 - **Historical C0 result at 12:54 (within 20 minutes):** first APK builds/installs/launches; direct ACTION_ASSIST → Speak passes. Default-service invocation was not yet passed because the corrected build was blocked by full C: storage.
 - **Follow-up at 13:04–13:06:** corrected build installed using U: scratch space; default voice service, system assistant invocation and simulated emulator power-button invocation **PASS**.
-- Physical long-press power from a locked OEM handset: **NOT VERIFIED**; requires H3's phone. Do not describe this as passed in the demo.
+- **Physical Pixel follow-up:** user confirms long-press power from the locked Pixel 6a opens Speak. Device-specific assistant entry check **PASS**; Malayalam speech quality and other OEMs are separate QA work.
 - Contracts: unavailable (`contracts/` contains only `.gitkeep`). Local fixtures are provisional and are not a contract acknowledgement.
 
 ## Contract changes
