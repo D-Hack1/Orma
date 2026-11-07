@@ -95,7 +95,7 @@ fun AccountSetupScreen(model: OrmaViewModel, deviceOnly: Boolean = false) {
                 LargeButton(stringResource(R.string.sign_out), Modifier.fillMaxWidth()) { model.signOut() }
             }
             if (action.busy) CircularProgressIndicator()
-            if (action.failed) Text(stringResource(R.string.setup_failed), color = MaterialTheme.colorScheme.error, fontSize = 20.sp)
+            if (action.failed) Text(if (context.isMalayalam()) stringResource(R.string.setup_failed) else action.error.ifBlank { context.getString(R.string.setup_failed) }, color = MaterialTheme.colorScheme.error, fontSize = 20.sp)
         }
     }
 }

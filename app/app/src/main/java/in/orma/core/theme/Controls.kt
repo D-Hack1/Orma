@@ -11,6 +11,22 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.Alignment
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.ui.platform.testTag
+
+@Composable
+fun VoiceButton(label: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
+    Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Button(onClick = onClick, enabled = enabled, shape = CircleShape, contentPadding = PaddingValues(0.dp),
+            modifier = Modifier.size(184.dp).testTag("microphone").semantics { contentDescription = label }) {
+            Icon(Icons.Outlined.Mic, null, Modifier.size(76.dp))
+        }
+        Text(label, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+    }
+}
 
 @Composable
 fun LargeButton(label: String, modifier: Modifier = Modifier, enabled: Boolean = true, accessibilityLabel: String = label, onClick: () -> Unit) {

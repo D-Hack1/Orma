@@ -18,7 +18,7 @@ android {
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "USE_STUB_API", providers.gradleProperty("ormaStub").getOrElse("false"))
-        buildConfigField("String", "FIREBASE_EMULATOR_HOST", "\"${providers.gradleProperty("ormaHost").getOrElse("")}\"")
+        buildConfigField("String", "ORMA_API_URL", "\"${providers.gradleProperty("ormaApiUrl").getOrElse("")}\"")
     }
     buildFeatures { compose = true; buildConfig = true }
     bundle { language { enableSplit = false } }
@@ -52,15 +52,6 @@ dependencies {
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
     implementation(libs.serialization)
-    implementation(libs.coroutines.play)
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.auth)
-    implementation(libs.firebase.firestore)
-    implementation(libs.firebase.functions)
-    implementation(libs.firebase.messaging)
-    implementation(libs.firebase.config)
-    implementation(libs.firebase.crashlytics)
-    implementation(libs.firebase.appcheck)
     testImplementation(libs.junit)
     testImplementation(libs.coroutines.test)
     androidTestImplementation(libs.androidx.test)

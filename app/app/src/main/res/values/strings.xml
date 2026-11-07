@@ -13,7 +13,7 @@
     <string name="language_title">Choose your language</string>
     <string name="language_help">Buttons, captions, and voice use the selected language.</string>
     <string name="english_language">English</string>
-    <string name="malayalam_language">മലയാളം</string>
+    <string name="malayalam_language">Malayalam</string>
     <string name="local_demo">LOCAL DEMO · saved on this phone</string>
     <string name="demo_disclosure">Demo mode. Records are saved locally. No family alerts are sent.</string>
     <string name="role_supporter">Supporter</string>
@@ -223,7 +223,7 @@
     <string name="schedule_private">Medicine details are private. Ask the member to share them before managing the schedule.</string>
     <string name="no_members">Add a parent first, then set up their medicines and pair their phone.</string>
     <string name="refresh_family">Refresh family information</string>
-    <string name="connected_server">Connected to local family server</string>
+    <string name="connected_server">Connected to your family</string>
     <string name="server_unavailable">Family server is unavailable. Check the connection and retry.</string>
     <string name="family_contacts">Call or message family</string>
     <string name="call_contact">Call %1$s</string>
@@ -245,4 +245,5 @@
     <string name="checkin_channel">Medicine check-ins</string>
     <string name="device_setup_settings">Change who this phone is for</string>
     <string name="dose_persons">This phone: %1$s</string>
+    <string name="checkin_question">It is medicine time. Have you taken your medicine?</string>
 </resources>

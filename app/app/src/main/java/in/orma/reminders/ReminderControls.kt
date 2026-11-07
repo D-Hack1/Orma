@@ -46,6 +46,20 @@ fun NotificationControls(assistantOnly: Boolean = false) {
         else if (Build.VERSION.SDK_INT >= 33) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(stringResource(R.string.checkin_permissions_help))
+        LargeButton(stringResource(R.string.checkin_permissions), Modifier.fillMaxWidth()) {
+            request("assistant")
+        }
+        if (Build.VERSION.SDK_INT >= 31 && !Reminders.exactPermitted(context)) {
+            LargeButton(stringResource(R.string.precise_alarms), Modifier.fillMaxWidth()) {
+                context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}")))
+            }
+        }
+        if (Build.VERSION.SDK_INT >= 34 && !context.getSystemService(android.app.NotificationManager::class.java).canUseFullScreenIntent()) {
+            LargeButton(stringResource(R.string.allow_fullscreen), Modifier.fillMaxWidth()) {
+                context.startActivity(Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:${context.packageName}")))
+            }
+        }
         if (assistantOnly) LargeButton(stringResource(R.string.pin_speak), Modifier.fillMaxWidth()) { request("assistant") }
         else {
             LargeButton(stringResource(R.string.demo_reminder), Modifier.fillMaxWidth()) { request("demo") }

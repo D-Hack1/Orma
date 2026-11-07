@@ -20,11 +20,13 @@ open class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         openSpeak.value = intent.getBooleanExtra("open_speak", false)
+        model.setReminder(intent.getStringExtra("reminder_member"), intent.getStringExtra("reminder_slot"))
         setContent { OrmaTheme { OrmaApp(model, openSpeak.value) { openSpeak.value = false } } }
     }
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         openSpeak.value = intent.getBooleanExtra("open_speak", false)
+        model.setReminder(intent.getStringExtra("reminder_member"), intent.getStringExtra("reminder_slot"))
     }
 }

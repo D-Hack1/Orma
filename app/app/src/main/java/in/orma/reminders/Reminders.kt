@@ -98,6 +98,25 @@ object Reminders {
 
     fun exactPermitted(context: Context): Boolean = Build.VERSION.SDK_INT < 31 || context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
 
+    fun cancel(context: Context, memberId: String, slot: Slot, date: String) {
+        context.getSystemService(AlarmManager::class.java).cancel(action(context, REMIND, memberId, slot, date))
+    }
+
+    fun checkIn(context: Context, memberId: String, slot: Slot, date: String): Boolean {
+        val strings = AppLanguage.wrap(context)
+        val channelId = "orma_checkins_v1"
+        context.getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(channelId, strings.getString(R.string.checkin_channel), NotificationManager.IMPORTANCE_HIGH))
+        val intent = Intent(context, AssistActivity::class.java).putExtra("reminder_member", memberId).putExtra("reminder_slot", slot.name)
+            .setData(Uri.parse("orma://checkin/$memberId/$date/${slot.name}"))
+        val open = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        return post(context, (memberId + slot.name).hashCode(), NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(R.drawable.ic_orma).setContentTitle(strings.getString(R.string.reminder_title, strings.slotName(slot)))
+            .setContentText(strings.getString(R.string.checkin_question)).setContentIntent(open).setFullScreenIntent(open, true)
+            .setCategory(NotificationCompat.CATEGORY_ALARM).setPriority(NotificationCompat.PRIORITY_MAX)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE).setAutoCancel(true).build())
+    }
+
     /** Returns whether Android permits exact timing; an inexact alarm remains a safe fallback. */
     fun schedule(context: Context, memberId: String, slot: Slot, date: String, atMillis: Long): Boolean {
         val alarm = context.getSystemService(AlarmManager::class.java)
@@ -123,6 +142,12 @@ class ReminderReceiver : BroadcastReceiver() {
         val memberId = intent.getStringExtra("memberId") ?: return
         val slot = intent.getStringExtra("slot")?.let { runCatching { Slot.valueOf(it) }.getOrNull() } ?: return
         val date = intent.getStringExtra("date") ?: return
+        val cached = ScheduleStore.cached(context)
+        if (Reminders.isReminder(intent) && cached.members.any { it.id == memberId }) {
+            if (cached.doses.none { it.memberId == memberId && it.slot == slot && it.date == date }) Reminders.checkIn(context, memberId, slot, date)
+            ScheduleStore.restore(context)
+            return
+        }
         val member = api.members.firstOrNull { it.id == memberId } ?: return
         val recordExists = api.state.value.doses.any { it.memberId == memberId && it.slot == slot && it.date == date }
         if (Reminders.isReminder(intent)) {

@@ -15,6 +15,7 @@ import android.speech.RecognitionService
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import androidx.core.content.ContextCompat
 import java.util.Locale
@@ -27,6 +28,7 @@ class SpeechController(private val context: Context) {
     private var ready = false
     private var generation = 0
     private var pendingFinish: (() -> Unit)? = null
+    private var speechFinished: (() -> Unit)? = null
     private val handler = Handler(Looper.getMainLooper())
     private val tts = TextToSpeech(context) { ready = it == TextToSpeech.SUCCESS }
 
@@ -105,17 +107,25 @@ class SpeechController(private val context: Context) {
     /** Finish captured words; cancellation is reserved for leaving the screen. */
     fun finishListening() { pendingFinish?.invoke() }
 
-    fun speak(languageTag: String, malayalam: String, english: String): Boolean {
+    fun speak(languageTag: String, malayalam: String, english: String, onDone: (() -> Unit)? = null): Boolean {
         if (!ready) return false
         val text = if (languageTag.startsWith("ml")) malayalam else english
         if (text.isBlank()) return false
         val language = tts.setLanguage(Locale.forLanguageTag(languageTag))
         if (language == TextToSpeech.LANG_MISSING_DATA || language == TextToSpeech.LANG_NOT_SUPPORTED) return false
         tts.setSpeechRate(0.8f)
+        speechFinished = onDone
+        tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) { Log.i("OrmaSpeech", "spoken prompt started language=$languageTag") }
+            override fun onDone(utteranceId: String?) { handler.post { val callback = speechFinished; speechFinished = null; callback?.invoke() } }
+            @Deprecated("Deprecated in Java")
+            override fun onError(utteranceId: String?) { handler.post { val callback = speechFinished; speechFinished = null; callback?.invoke() } }
+        })
         return tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "orma-reply") == TextToSpeech.SUCCESS
     }
 
     fun stop() {
+        speechFinished = null
         generation++
         pendingFinish = null
         handler.removeCallbacksAndMessages(null)

@@ -17,13 +17,18 @@ data class Conversation(
     val message: String = "Tell me who, when, and how many tablets.", val failed: Boolean = false,
     val command: CompanionCommand? = null
 )
-data class SetupAction(val busy: Boolean = false, val failed: Boolean = false, val invitation: String = "", val complete: Boolean = false)
+data class SetupAction(val busy: Boolean = false, val failed: Boolean = false, val invitation: String = "", val complete: Boolean = false, val error: String = "")
 
 @HiltViewModel
 class OrmaViewModel @Inject constructor(val api: OrmaApi) : ViewModel() {
     val records = api.state
     val members get() = records.value.members.ifEmpty { api.members }
     val session = api.session
+    val reminder = MutableStateFlow<Pair<String, Slot>?>(null)
+    fun setReminder(memberId: String?, slot: String?) {
+        val parsed = slot?.let { runCatching { Slot.valueOf(it) }.getOrNull() }
+        if (!memberId.isNullOrBlank() && parsed != null) { reminder.value = memberId to parsed; setPrompt(parsed) }
+    }
     private val mutableSetup = MutableStateFlow(SetupAction())
     val setup = mutableSetup.asStateFlow()
     private val mutableConversation = MutableStateFlow(Conversation())
@@ -44,7 +49,7 @@ class OrmaViewModel @Inject constructor(val api: OrmaApi) : ViewModel() {
     fun retryConnection() = setupAction { api.initialize() }
     fun signOut() = setupAction { api.logout(); mutableConversation.value = Conversation() }
     fun resetSetupMessage() { mutableSetup.value = SetupAction() }
-    fun setPrompt(slot: Slot?) { (api as? FirebaseOrmaApi)?.selectedSlot = slot }
+    fun setPrompt(slot: Slot?) { (api as? SupabaseOrmaApi)?.selectedSlot = slot }
 
     private fun setupAction(block: suspend () -> Unit) {
         if (mutableSetup.value.busy) return
@@ -52,7 +57,7 @@ class OrmaViewModel @Inject constructor(val api: OrmaApi) : ViewModel() {
         viewModelScope.launch {
             try { block(); mutableSetup.value = mutableSetup.value.copy(busy = false, complete = true) }
             catch (e: CancellationException) { throw e }
-            catch (_: Exception) { mutableSetup.value = SetupAction(failed = true) }
+            catch (e: Exception) { mutableSetup.value = SetupAction(failed = true, error = e.message.orEmpty()) }
         }
     }
 
@@ -68,10 +73,11 @@ class OrmaViewModel @Inject constructor(val api: OrmaApi) : ViewModel() {
         }
     }
 
-    fun log(memberIds: List<String>, slot: Slot, count: Int, source: String = "tap", by: String = "self", transcript: String = "", evidence: List<Evidence> = emptyList()) = runAction {
+    fun log(memberIds: List<String>, slot: Slot, count: Int, source: String = "tap", by: String = "self", transcript: String = "", evidence: List<Evidence> = emptyList(), medicineIds: List<String>? = null) = runAction {
         val results = memberIds.map { id ->
             val schedule = records.value.schedules.firstOrNull { it.memberId == id && it.slot == slot }
-            val medicines = if (count == schedule?.expected) schedule.medicines.map { it.id } else conversation.value.understanding?.medicines.orEmpty()
+            val medicines = medicineIds ?: if (count == schedule?.expected) schedule.medicines.map { it.id }
+                else if (schedule?.medicines?.size == 1) listOf(schedule.medicines.single().id) else conversation.value.understanding?.medicines.orEmpty()
             api.logDose(LogRequest(id, slot = slot, countTaken = count, medicinesTaken = medicines,
                 source = source, by = if (by == "self") id else by, transcript = transcript, evidence = evidence))
         }

@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.delay
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -78,10 +80,16 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
     LaunchedEffect(account.role) {
         if (!account.isDemo) role = when (account.role) { "assisted" -> "Assisted"; "independent" -> "Independent"; "nurse" -> "Nurse"; else -> "Supporter" }
     }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(account.familyId, lifecycleOwner) {
+        if (!account.isDemo) lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) { delay(8000); runCatching { model.api.refresh() } }
+        }
+    }
     DisposableEffect(Unit) { onDispose { speech.close() } }
     LaunchedEffect(route) { if (route != "speak") speech.stop() }
     LaunchedEffect(openSpeak) {
-        if (openSpeak) { role = "Assisted"; nav.navigate("speak") { launchSingleTop = true }; onOpened() }
+        if (openSpeak) { if (account.isDemo) role = "Assisted"; nav.navigate("speak") { launchSingleTop = true }; onOpened() }
     }
     LaunchedEffect(conversation.reply) {
         conversation.reply?.let {
@@ -128,21 +136,26 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
         NavHost(nav, "home", Modifier.padding(padding)) {
             composable("home") {
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                    if (!account.isDemo) LargeButton(stringResource(R.string.family_contacts), Modifier.fillMaxWidth()) { nav.navigate("contacts") }
                     if (state.storageError) Notice(stringResource(R.string.logging_paused), stringResource(R.string.storage_error))
                     when (role) {
                         "Assisted" -> {
                             PageHeading(stringResource(R.string.assisted_title), stringResource(R.string.assisted_subtitle))
-                            LargeButton(stringResource(R.string.speak), Modifier.fillMaxWidth().heightIn(min = 176.dp)) { nav.navigate("speak") }
+                            VoiceButton(stringResource(R.string.speak), Modifier.fillMaxWidth()) { nav.navigate("speak") }
                             model.members.filter { if (account.isDemo) it.id in listOf("achan", "amma") else it.id in account.deviceMemberIds }.forEach { member ->
                                 MemberCard(member, state, true, { logMember = member; logSlot = it }, { model.explain(member.id, it); explanation = true })
                             }
                         }
                         "Independent" -> {
                             val member = model.members.firstOrNull { if (account.isDemo) it.id == "farhan" else it.isOwner } ?: return@Column
-                            PageHeading(stringResource(R.string.independent_title), context.memberName(member.id))
+                            PageHeading(stringResource(R.string.independent_title), if (state.connected) member.name else context.memberName(member.id))
                             Notice(stringResource(R.string.quiet_title), stringResource(R.string.quiet_body))
                             MemberCard(member, state, true, { logMember = member; logSlot = it }, { model.explain(member.id, it); explanation = true })
                             if (account.isDemo) NotificationControls()
+                            else {
+                                VoiceButton(stringResource(R.string.speak)) { nav.navigate("speak") }
+                                LargeButton(stringResource(R.string.configure_medicines), Modifier.fillMaxWidth()) { nav.navigate("schedule") }
+                            }
                         }
                         else -> {
                             PageHeading(stringResource(if (role == "Nurse") R.string.patients_title else R.string.family_title),
@@ -204,7 +217,7 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
         var count by remember(member.id, logSlot) { mutableIntStateOf(expected) }
         ModalBottomSheet(onDismissRequest = { logMember = null }, containerColor = Paper) {
             SheetColumn {
-                Text("${context.memberName(member.id)} · ${context.slotName(logSlot)}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("${if (state.connected) member.name else context.memberName(member.id)} · ${context.slotName(logSlot)}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 if (expected > 0) {
                     Text(if (account.isDemo) stringResource(R.string.record_instructions, expected) else stringResource(R.string.count_tablets, expected))
                     state.schedules.firstOrNull { it.memberId == member.id && it.slot == logSlot }?.medicines?.forEach { Text("${it.name} ${it.strength} · ${it.count}", fontSize = 22.sp) }
@@ -252,26 +265,26 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
     val context = LocalContext.current
     Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(context.memberName(member.id), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(if (state.connected) member.name else context.memberName(member.id), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Text(stringResource(when (member.mode) { "keypad" -> R.string.keypad_phone; "independent" -> R.string.independent_phone; else -> R.string.home_phone }), color = Muted)
             Slot.entries.forEach { slot ->
                 val record = state.doses.firstOrNull { it.memberId == member.id && it.date == today() && it.slot == slot }
                 Column(Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp)).background(Paper, RoundedCornerShape(20.dp))) {
                     Column(Modifier.fillMaxWidth().heightIn(min = 112.dp).clickable(onClickLabel = context.getString(R.string.record_taken)) { onLog(slot) }
                         .padding(20.dp).semantics(mergeDescendants = true) {
-                            contentDescription = context.getString(R.string.dose_accessibility, context.memberName(member.id), context.slotName(slot), context.statusName(record?.status))
+                            contentDescription = context.getString(R.string.dose_accessibility, if (state.connected) member.name else context.memberName(member.id), context.slotName(slot), context.statusName(record?.status))
                         }.testTag("dose-${member.id}-${slot.name}"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(context.slotName(slot), fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                        Text("${slot.time} · ${context.statusName(record?.status)}", fontSize = 20.sp, color = Forest)
-                        if (record != null && (showPrivate || state.sharing[member.id]?.counts == true)) Text("${record.countTaken}/${record.countExpected} · ${context.sourceName(record.source)}", fontSize = 18.sp)
+                        Text("${state.schedules.firstOrNull { it.memberId == member.id && it.slot == slot }?.time ?: slot.time} · ${context.statusName(record?.status)}", fontSize = 20.sp, color = Forest)
+                        if (record != null && record.countTaken != null && (showPrivate || state.sharing[member.id]?.counts == true)) Text("${record.countTaken}/${record.countExpected} · ${context.sourceName(record.source)}", fontSize = 18.sp)
                     }
-                    OutlinedButton({ onWhy(slot) }, Modifier.fillMaxWidth().heightIn(min = 80.dp).padding(horizontal = 12.dp).semantics { contentDescription = context.getString(R.string.why_accessibility, context.memberName(member.id), context.slotName(slot)) }, shape = RoundedCornerShape(16.dp)) {
+                    OutlinedButton({ onWhy(slot) }, Modifier.fillMaxWidth().heightIn(min = 80.dp).padding(horizontal = 12.dp).semantics { contentDescription = context.getString(R.string.why_accessibility, if (state.connected) member.name else context.memberName(member.id), context.slotName(slot)) }, shape = RoundedCornerShape(16.dp)) {
                         Text(stringResource(R.string.why), fontSize = 22.sp)
                     }
                     Spacer(Modifier.height(12.dp))
                 }
             }
-            if (!showPrivate && state.sharing[member.id]?.counts != true) Text(stringResource(R.string.privacy_counts, context.memberName(member.id)), color = Muted)
+            if (!showPrivate && state.sharing[member.id]?.counts != true) Text(stringResource(R.string.privacy_counts, if (state.connected) member.name else context.memberName(member.id)), color = Muted)
         }
     }
 }
@@ -324,9 +337,17 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
     var level by remember { mutableFloatStateOf(0f) }
     var partial by remember { mutableStateOf("") }
     var transcript by rememberSaveable { mutableStateOf("") }
-    var selected by rememberSaveable { mutableStateOf("amma") }
-    var slot by rememberSaveable { mutableStateOf(Slot.morning) }
-    var count by rememberSaveable { mutableIntStateOf(3) }
+    val account by model.session.collectAsStateWithLifecycle()
+    val records by model.records.collectAsStateWithLifecycle()
+    val reminder by model.reminder.collectAsStateWithLifecycle()
+    val available = model.members.filter { if (account.isDemo) it.id in listOf("achan", "amma") else it.id in account.deviceMemberIds }
+    var selected by rememberSaveable { mutableStateOf(reminder?.first ?: available.firstOrNull()?.id.orEmpty()) }
+    var slot by rememberSaveable { mutableStateOf(reminder?.second ?: Slot.morning) }
+    var count by rememberSaveable { mutableIntStateOf(0) }
+    var callContact by remember { mutableStateOf<FamilyContact?>(null) }
+    val expected = model.expected(selected, slot)
+    LaunchedEffect(selected, slot, expected) { count = expected }
+    fun displayName(id: String) = if (account.isDemo) context.memberName(id) else model.members.firstOrNull { it.id == id }?.name.orEmpty()
     var sources by remember { mutableStateOf<Sentence?>(null) }
     fun startListening() {
         issue = null; partial = ""; level = 0f
@@ -334,6 +355,15 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
     }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) startListening() else issue = SpeechIssue.Permission }
     LaunchedEffect(languageTag) {
+        if (reminder != null) {
+            repeat(8) {
+                if (speech.speak(languageTag, "മരുന്ന് കഴിക്കേണ്ട സമയമായി. നിങ്ങൾ മരുന്ന് കഴിച്ചോ?", "It is medicine time. Have you taken your medicine?") {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) startListening()
+                        else permission.launch(Manifest.permission.RECORD_AUDIO)
+                    }) return@LaunchedEffect
+                delay(250)
+            }
+        }
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) startListening()
         else permission.launch(Manifest.permission.RECORD_AUDIO)
     }
@@ -343,11 +373,12 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
         onDispose { owner.lifecycle.removeObserver(observer); speech.stop() }
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        PageHeading(stringResource(R.string.speak_heading), stringResource(R.string.shared_members))
-        LargeButton(stringResource(when (micState) {
+        PageHeading(stringResource(R.string.speak_heading), if (account.isDemo) stringResource(R.string.shared_members) else stringResource(R.string.dose_persons, available.joinToString { it.name }))
+        if (reminder != null) Notice(context.slotName(slot), stringResource(R.string.checkin_question))
+        VoiceButton(stringResource(when (micState) {
             SpeechState.Starting -> R.string.mic_starting; SpeechState.Listening -> R.string.mic_listening
             SpeechState.Processing -> R.string.mic_processing; else -> R.string.speak
-        }), Modifier.fillMaxWidth().heightIn(min = 184.dp).testTag("microphone"), micState != SpeechState.Processing) {
+        }), Modifier.fillMaxWidth(), micState != SpeechState.Processing) {
             if (micState == SpeechState.Listening) speech.finishListening()
             else if (micState == SpeechState.Starting) { speech.stop(); micState = SpeechState.Idle }
             else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) startListening()
@@ -385,28 +416,56 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
             Notice(stringResource(if (conversation.blocked) R.string.record_exists else R.string.record_says), context.replyText(reply))
             reply.sentences.forEach { sentence -> LargeButton(stringResource(R.string.view_source, sentence.cites.size), Modifier.fillMaxWidth()) { sources = sentence } }
         }
-        conversation.understanding?.takeIf { !it.needsClarification && it.intent == "log" }?.let { heard ->
-            LargeButton(stringResource(R.string.confirm_heard, requireNotNull(heard.countTaken), heard.memberIds.joinToString { context.memberName(it) }, context.slotName(requireNotNull(heard.slot))),
-                Modifier.fillMaxWidth().testTag("confirm-heard"), !conversation.busy) {
-                speech.stop(); micState = SpeechState.Idle
-                model.log(heard.memberIds, heard.slot, heard.countTaken, "voice", transcript = heard.transcript, evidence = heard.evidence)
+        when (val command = conversation.command) {
+            is CompanionCommand.Call -> {
+                if (command.candidates.isEmpty()) Text(stringResource(R.string.call_missing))
+                command.candidates.forEach { contact ->
+                    LargeButton(stringResource(R.string.call_contact, contact.name), Modifier.fillMaxWidth(), contact.phone.isNotBlank()) { speech.stop(); callContact = contact }
+                    if (contact.phone.isBlank()) Text(stringResource(R.string.phone_missing))
+                }
+            }
+            is CompanionCommand.Snooze -> {
+                Text(stringResource(R.string.confirm_snooze, command.minutes), fontSize = 24.sp)
+                LargeButton(stringResource(R.string.snooze_minutes, command.minutes), Modifier.fillMaxWidth(), expected > 0 && !conversation.busy) { speech.stop(); model.snooze(selected, slot, command.minutes) }
+            }
+            null -> Unit
+        }
+        conversation.understanding?.takeIf { !it.needsClarification && it.intent == "log" && it.slot != null }?.let { heard ->
+            val takenIds = if (heard.memberActions.isEmpty()) heard.memberIds else heard.memberActions.filter { it.taken }.map { it.memberId }
+            takenIds.forEach { id ->
+                val doseSlot = requireNotNull(heard.slot)
+                val medicineIds = heard.memberActions.firstOrNull { it.memberId == id }?.medicines?.takeIf { it.isNotEmpty() } ?: heard.medicines
+                val prescribed = records.schedules.firstOrNull { it.memberId == id && it.slot == doseSlot }?.medicines.orEmpty()
+                val proposed = if (medicineIds.isEmpty()) prescribed else prescribed.filter { it.id in medicineIds }
+                val proposedCount = heard.memberActions.firstOrNull { it.memberId == id }?.count ?: heard.countTaken ?: if (proposed.isNotEmpty()) proposed.sumOf { it.count } else model.expected(id, doseSlot)
+                proposed.forEach { Text("${it.name} ${it.strength} · ${it.count}", fontSize = 22.sp) }
+                LargeButton(stringResource(R.string.confirm_heard, proposedCount, displayName(id), context.slotName(doseSlot)),
+                    Modifier.fillMaxWidth().testTag("confirm-heard"), !conversation.busy && proposedCount > 0) {
+                    speech.stop(); micState = SpeechState.Idle
+                    model.log(listOf(id), doseSlot, proposedCount, "voice", transcript = heard.transcript, evidence = heard.evidence, medicineIds = proposed.map { it.id }.takeIf { it.isNotEmpty() })
+                }
             }
         }
         Text(stringResource(R.string.tap_alternative), fontSize = 26.sp, fontWeight = FontWeight.Bold)
-        listOf("achan", "amma", "both").forEach { id -> LargeChoice(if (id == "both") stringResource(R.string.both) else context.memberName(id), selected == id) { selected = id } }
-        Slot.entries.forEach { item -> LargeChoice(context.slotName(item), slot == item) { slot = item } }
-        CountControls(count, 3, { count-- }, { count++ })
-        LargeButton(stringResource(R.string.record_taken), Modifier.fillMaxWidth(), !conversation.busy) { speech.stop(); micState = SpeechState.Idle; model.log(if (selected == "both") listOf("achan", "amma") else listOf(selected), slot, count) }
-        LargeButton(stringResource(R.string.ask_dose), Modifier.fillMaxWidth(), !conversation.busy) { model.explain(if (selected == "both") "amma" else selected, slot) }
+        available.forEach { member -> LargeChoice(displayName(member.id), selected == member.id) { selected = member.id } }
+        Slot.entries.forEach { item -> LargeChoice(context.slotName(item), slot == item) { slot = item; model.setPrompt(item) } }
+        if (expected > 0) {
+            records.schedules.firstOrNull { it.memberId == selected && it.slot == slot }?.medicines?.forEach { Text("${it.name} ${it.strength} · ${it.count}", fontSize = 22.sp) }
+            CountControls(count, expected, { count-- }, { count++ })
+        } else Text(stringResource(R.string.no_schedule))
+        LargeButton(stringResource(R.string.record_taken), Modifier.fillMaxWidth(), !conversation.busy && count > 0) { speech.stop(); micState = SpeechState.Idle; model.log(listOf(selected), slot, count) }
+        LargeButton(stringResource(R.string.ask_dose), Modifier.fillMaxWidth(), !conversation.busy && selected.isNotBlank()) { model.explain(selected, slot) }
+        if (!account.isDemo) LargeButton(stringResource(R.string.snooze_minutes, 10), Modifier.fillMaxWidth(), expected > 0 && !conversation.busy) { speech.stop(); model.snooze(selected, slot, 10) }
         HorizontalDivider()
         Text(stringResource(R.string.try_phrase), fontSize = 24.sp)
         OutlinedTextField(transcript, { transcript = it }, label = { Text(stringResource(R.string.what_you_said)) }, modifier = Modifier.fillMaxWidth())
         LargeButton(stringResource(R.string.check_phrase), Modifier.fillMaxWidth(), transcript.isNotBlank() && !conversation.busy) { speech.stop(); micState = SpeechState.Idle; model.submit(transcript) }
-        listOf(R.string.sample_0, R.string.sample_1, R.string.sample_2, R.string.sample_3).forEachIndexed { index, resource ->
+        if (account.isDemo) listOf(R.string.sample_0, R.string.sample_1, R.string.sample_2, R.string.sample_3).forEachIndexed { index, resource ->
             val phrase = stringResource(resource)
             LargeButton(phrase, Modifier.fillMaxWidth().testTag("demo-phrase-$index")) { speech.stop(); micState = SpeechState.Idle; transcript = phrase; model.submit(phrase) }
         }
     }
+    callContact?.let { ContactCallSheet(it) { callContact = null } }
     sources?.let { sentence -> ModalBottomSheet(onDismissRequest = { sources = null }) {
         SheetColumn {
             Text(stringResource(R.string.why_answer), fontSize = 26.sp, fontWeight = FontWeight.Bold)

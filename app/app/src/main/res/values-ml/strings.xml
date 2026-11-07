@@ -12,7 +12,7 @@
     <string name="language_switch">English</string>
     <string name="language_title">ഭാഷ തിരഞ്ഞെടുക്കൂ</string>
     <string name="language_help">ബട്ടണുകളും എഴുത്തും ശബ്ദവും തിരഞ്ഞെടുത്ത ഭാഷയിൽ ലഭിക്കും.</string>
-    <string name="english_language">English</string>
+    <string name="english_language">ഇംഗ്ലീഷ്</string>
     <string name="malayalam_language">മലയാളം</string>
     <string name="local_demo">പരീക്ഷണ പതിപ്പ് · ഈ ഫോണിൽ സൂക്ഷിക്കുന്നു</string>
     <string name="demo_disclosure">പരീക്ഷണ പതിപ്പ്. രേഖകൾ ഈ ഫോണിൽ സൂക്ഷിക്കുന്നു. കുടുംബത്തിന് അറിയിപ്പുകൾ അയയ്ക്കുന്നില്ല.</string>
@@ -223,7 +223,7 @@
     <string name="schedule_private">മരുന്ന് വിവരങ്ങൾ സ്വകാര്യമാണ്. ക്രമീകരിക്കുന്നതിന് മുമ്പ് അത് പങ്കിടാൻ അംഗത്തോട് ചോദിക്കൂ.</string>
     <string name="no_members">ആദ്യം അച്ഛനെയോ അമ്മയെയോ ചേർക്കൂ. തുടർന്ന് മരുന്നുകൾ ക്രമീകരിച്ച് അവരുടെ ഫോൺ ബന്ധിപ്പിക്കൂ.</string>
     <string name="refresh_family">കുടുംബ വിവരം പുതുക്കൂ</string>
-    <string name="connected_server">കുടുംബത്തിന്റെ പ്രാദേശിക സെർവറുമായി ബന്ധിപ്പിച്ചു</string>
+    <string name="connected_server">കുടുംബവുമായി ബന്ധിപ്പിച്ചു</string>
     <string name="server_unavailable">കുടുംബ സെർവറുമായി ബന്ധപ്പെടാനാവുന്നില്ല. ബന്ധം പരിശോധിച്ച് വീണ്ടും ശ്രമിക്കൂ.</string>
     <string name="family_contacts">കുടുംബത്തെ വിളിക്കൂ, സന്ദേശം അയയ്ക്കൂ</string>
     <string name="call_contact">%1$s നെ വിളിക്കൂ</string>
@@ -245,4 +245,5 @@
     <string name="checkin_channel">മരുന്ന് ഓർമ്മിപ്പിക്കൽ</string>
     <string name="device_setup_settings">ഈ ഫോൺ ആർക്കുവേണ്ടിയാണെന്ന് മാറ്റൂ</string>
     <string name="dose_persons">ഈ ഫോൺ: %1$s</string>
+    <string name="checkin_question">മരുന്ന് കഴിക്കേണ്ട സമയമായി. നിങ്ങൾ മരുന്ന് കഴിച്ചോ?</string>
 </resources>

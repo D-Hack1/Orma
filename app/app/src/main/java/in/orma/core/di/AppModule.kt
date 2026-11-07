@@ -15,7 +15,7 @@ import `in`.orma.BuildConfig
 @InstallIn(SingletonComponent::class)
 object AppModule {
     @Provides @Singleton fun provideApi(@ApplicationContext context: Context): OrmaApi {
-        if (!BuildConfig.USE_STUB_API) return FirebaseOrmaApi(context)
+        if (!BuildConfig.USE_STUB_API) return SupabaseOrmaApi(context)
         val json = Json { ignoreUnknownKeys = true }
         val fixture = json.decodeFromString<DemoFixture>(context.assets.open("demo-fixture.json").bufferedReader().use { it.readText() })
         val prefs = context.getSharedPreferences("orma-demo", Context.MODE_PRIVATE)
