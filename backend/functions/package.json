@@ -11,7 +11,9 @@
     "test:rules": "firebase emulators:exec --config ../../firebase.json --project demo-orma --only auth,firestore,storage 'vitest run test/rules*.test.ts'",
     "emulators": "npm run build && firebase emulators:start --config ../../firebase.json --project demo-orma",
     "seed": "tsx ../scripts/seed.ts",
-    "reset-demo": "tsx ../scripts/reset-demo.ts"
+    "reset-demo": "tsx ../scripts/reset-demo.ts",
+    "demo-token": "tsx ../scripts/demo-token.ts",
+    "generate-audio": "tsx ../scripts/generate-audio.ts --admin-generate"
   },
   "dependencies": {
     "@google-cloud/text-to-speech": "^7.2.0",

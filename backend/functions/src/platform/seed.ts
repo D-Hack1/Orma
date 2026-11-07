@@ -13,6 +13,12 @@ export function assertEmulator(env: NodeJS.ProcessEnv = process.env): void {
   }
 }
 
+export async function createDemoToken(uid: string): Promise<string> {
+  assertEmulator();
+  await getAuth(app).getUser(uid);
+  return getAuth(app).createCustomToken(uid);
+}
+
 const fixtureSchema = z.object({
   synthetic: z.literal(true), today: z.string(),
   people: z.array(z.object({ id: z.string(), uid: z.string().optional(), name: z.string(), roles: z.array(z.string()), language: z.string() })),
