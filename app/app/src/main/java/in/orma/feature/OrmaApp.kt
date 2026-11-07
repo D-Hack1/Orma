@@ -39,6 +39,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -68,6 +69,7 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
     val nav = rememberNavController()
     var role by rememberSaveable { mutableStateOf("Supporter") }
     var roleMenu by remember { mutableStateOf(false) }
+    val reminderScope = rememberCoroutineScope()
     val state by model.records.collectAsStateWithLifecycle()
     val conversation by model.conversation.collectAsStateWithLifecycle()
     var logMember by remember { mutableStateOf<Member?>(null) }
@@ -87,6 +89,34 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
         }
     }
     DisposableEffect(Unit) { onDispose { speech.close() } }
+    val dial by model.dialRequest.collectAsStateWithLifecycle()
+    LaunchedEffect(dial) {
+        val (who, question) = dial ?: return@LaunchedEffect
+        val number = `in`.orma.BuildConfig.SUPPORTER_PHONE
+        val sms = "Orma alert: $who asked \"$question\". There is no dose record, so Orma asked $who to wait and not take another dose. Please call $who now."
+        runCatching {
+            val manager = if (android.os.Build.VERSION.SDK_INT >= 31) context.getSystemService(android.telephony.SmsManager::class.java) else @Suppress("DEPRECATION") android.telephony.SmsManager.getDefault()
+            manager.sendMultipartTextMessage(number, null, manager.divideMessage(sms), null, null)
+            android.util.Log.i("OrmaCall", "sms sent")
+        }.onFailure { android.util.Log.w("OrmaCall", "sms failed ${it.javaClass.simpleName}") }
+        delay(4500) // let Orma finish saying "I am calling Anu"
+        runCatching {
+            context.startActivity(android.content.Intent(android.content.Intent.ACTION_CALL, android.net.Uri.parse("tel:$number")).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            model.callStatus.value = "📞 Calling Anu now"
+            android.util.Log.i("OrmaCall", "dialing")
+        }.onFailure {
+            model.callStatus.value = "Could not start the call: ${it.javaClass.simpleName}"
+            android.util.Log.w("OrmaCall", "dial failed ${it.javaClass.simpleName}")
+        }
+        model.dialRequest.value = null
+    }
+    val demoRecords by model.records.collectAsStateWithLifecycle()
+    LaunchedEffect(account.isDemo, demoRecords.schedules, demoRecords.doses.size) {
+        val phoneMembers = if (account.isDemo) listOf("achan", "amma") else account.deviceMemberIds
+        if (phoneMembers.isNotEmpty() && demoRecords.schedules.isNotEmpty()) runCatching {
+            `in`.orma.reminders.ScheduleStore.sync(context, demoRecords, account.copy(role = "assisted", deviceMemberIds = phoneMembers))
+        }
+    }
     LaunchedEffect(route) { if (route != "speak") speech.stop() }
     LaunchedEffect(openSpeak) {
         if (openSpeak) { if (account.isDemo) role = "Assisted"; nav.navigate("speak") { launchSingleTop = true }; onOpened() }
@@ -94,7 +124,7 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
     LaunchedEffect(conversation.reply) {
         conversation.reply?.let {
             feedback(context, conversation.blocked)
-            if (role == "Assisted" && route == "speak") speech.speak(languageTag, it.textMl, it.textEn)
+            if (route == "speak") speech.speak(languageTag, it.textMl, it.textEn)
         }
     }
     Scaffold(containerColor = Paper, topBar = {
@@ -108,7 +138,7 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
                     Text(stringResource(R.string.language_switch), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
                 }
                 Box {
-                    IconButton({ if (account.isDemo) roleMenu = true else nav.navigate("family") }, Modifier.size(80.dp).testTag("role-switch").semantics { contentDescription = context.getString(if (account.isDemo) R.string.switch_role else R.string.family_manage) }) {
+                    IconButton({ roleMenu = true }, Modifier.size(80.dp).testTag("role-switch").semantics { contentDescription = context.getString(R.string.switch_role) }) {
                         Icon(Icons.Outlined.Person, null, Modifier.size(32.dp), tint = Forest)
                     }
                     DropdownMenu(roleMenu, { roleMenu = false }) {
@@ -118,6 +148,9 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
                                 nav.navigate("home") { popUpTo("home") { inclusive = true } }
                             })
                         }
+                        if (!account.isDemo) DropdownMenuItem(text = { Text(stringResource(R.string.family_manage), fontSize = 20.sp) }, modifier = Modifier.heightIn(min = 88.dp), onClick = {
+                            roleMenu = false; nav.navigate("family")
+                        })
                     }
                 }
             }
@@ -137,6 +170,25 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
             composable("home") {
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
                     if (!account.isDemo) LargeButton(stringResource(R.string.family_contacts), Modifier.fillMaxWidth()) { nav.navigate("contacts") }
+                    run {
+                        if (account.isDemo) LargeButton(if (context.isMalayalam()) "മരുന്നുകൾ ചേർക്കുക / മാറ്റുക" else "Add or change medicines", Modifier.fillMaxWidth()) { nav.navigate("schedule") }
+                        LargeButton(if (context.isMalayalam()) "1 മിനിറ്റിൽ മരുന്ന് ഓർമ്മപ്പെടുത്തൽ" else "Medicine reminder in 1 minute", Modifier.fillMaxWidth()) {
+                            val who = if (account.isDemo) "amma" else (state.members.firstOrNull { it.name == "Amma" }?.id ?: account.deviceMemberIds.firstOrNull().orEmpty())
+                            val target = state.schedules.firstOrNull { s -> s.memberId == who && state.doses.none { d -> d.memberId == who && d.date == today() && d.slot == s.slot } }
+                                ?: state.schedules.firstOrNull { it.memberId == who } ?: return@LargeButton
+                            `in`.orma.reminders.Reminders.schedule(context, target.memberId, target.slot, today(), System.currentTimeMillis() + 60_000)
+                            reminderScope.launch {
+                                delay(60_000)
+                                runCatching {
+                                    context.startActivity(android.content.Intent(context, `in`.orma.assistant.AssistActivity::class.java)
+                                        .putExtra("reminder_member", target.memberId).putExtra("reminder_slot", target.slot.name)
+                                        .setData(android.net.Uri.parse("orma://checkin/${target.memberId}/${today()}/${target.slot.name}/now"))
+                                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP))
+                                }.onFailure { android.util.Log.w("OrmaReminder", "open failed ${it.javaClass.simpleName}") }
+                            }
+                            android.widget.Toast.makeText(context, if (context.isMalayalam()) "ഒരു മിനിറ്റിൽ ഓർമ്മപ്പെടുത്തും" else "Reminder set for 1 minute", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
                     if (state.storageError) Notice(stringResource(R.string.logging_paused), stringResource(R.string.storage_error))
                     when (role) {
                         "Assisted" -> {
@@ -147,7 +199,7 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
                             }
                         }
                         "Independent" -> {
-                            val member = model.members.firstOrNull { if (account.isDemo) it.id == "farhan" else it.isOwner } ?: return@Column
+                            val member = (if (account.isDemo) model.members.firstOrNull { it.id == "farhan" } else model.members.firstOrNull { it.isOwner } ?: model.members.firstOrNull { it.mode == "independent" || it.name == "Rahul" } ?: model.members.lastOrNull()) ?: return@Column
                             PageHeading(stringResource(R.string.independent_title), if (state.connected) member.name else context.memberName(member.id))
                             Notice(stringResource(R.string.quiet_title), stringResource(R.string.quiet_body))
                             MemberCard(member, state, true, { logMember = member; logSlot = it }, { model.explain(member.id, it); explanation = true })
@@ -174,7 +226,7 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
                                 LargeButton(stringResource(R.string.configure_medicines), Modifier.fillMaxWidth()) { nav.navigate("schedule") }
                             }
                             if (model.members.isEmpty()) Text(stringResource(R.string.no_members), fontSize = 22.sp)
-                            model.members.filter { if (role == "Nurse") it.nurseAssigned else !account.isDemo || it.id != "farhan" }.forEach { member ->
+                            model.members.filter { if (role == "Nurse") (it.nurseAssigned || (!account.isDemo && it.id in account.deviceMemberIds)) else !account.isDemo || it.id != "farhan" }.forEach { member ->
                                 MemberCard(member, state, false, { logMember = member; logSlot = it }, { model.explain(member.id, it, privateView = false); explanation = true })
                             }
                             Notice(stringResource(R.string.consent_title), stringResource(R.string.consent_body))
@@ -182,7 +234,18 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
                     }
                 }
             }
-            composable("speak") { SpeakScreen(model, conversation, speech, languageTag) }
+            composable("speak") {
+                val callStatus by model.callStatus.collectAsStateWithLifecycle()
+                Column(Modifier.fillMaxSize()) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        LargeButton(if (context.isMalayalam()) "📞 അനുവിനോട് വിളിക്കാൻ പറയൂ" else "📞 Ask Anu to call me", Modifier.weight(1f)) {
+                            model.callSupporter(conversation.transcript.ifBlank { "Please call me about my medicine" }, conversation.understanding?.memberIds?.firstOrNull())
+                        }
+                    }
+                    if (callStatus.isNotBlank()) Text(callStatus, Modifier.padding(horizontal = 20.dp), fontSize = 20.sp, color = Forest)
+                    Box(Modifier.weight(1f)) { SpeakScreen(model, conversation, speech, languageTag) }
+                }
+            }
             composable("family") { FamilyManagementScreen(model) { nav.navigate("schedule") } }
             composable("schedule") { ScheduleEditorScreen(model) }
             composable("contacts") { FamilyContactScreen(model) }
@@ -351,10 +414,10 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
     var sources by remember { mutableStateOf<Sentence?>(null) }
     fun startListening() {
         issue = null; partial = ""; level = 0f
-        speech.listen(languageTag, { transcript = it; model.submit(it) }, { issue = it }, { micState = it }, { level = it }, { partial = it })
+        speech.listen(languageTag, { transcript = it; model.submit(it, languageTag, selected) }, { issue = it }, { micState = it }, { level = it }, { partial = it })
     }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) startListening() else issue = SpeechIssue.Permission }
-    LaunchedEffect(languageTag) {
+    LaunchedEffect(languageTag, reminder) {
         if (reminder != null) {
             repeat(8) {
                 if (speech.speak(languageTag, "മരുന്ന് കഴിക്കേണ്ട സമയമായി. നിങ്ങൾ മരുന്ന് കഴിച്ചോ?", "It is medicine time. Have you taken your medicine?") {
@@ -459,10 +522,10 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
         HorizontalDivider()
         Text(stringResource(R.string.try_phrase), fontSize = 24.sp)
         OutlinedTextField(transcript, { transcript = it }, label = { Text(stringResource(R.string.what_you_said)) }, modifier = Modifier.fillMaxWidth())
-        LargeButton(stringResource(R.string.check_phrase), Modifier.fillMaxWidth(), transcript.isNotBlank() && !conversation.busy) { speech.stop(); micState = SpeechState.Idle; model.submit(transcript) }
+        LargeButton(stringResource(R.string.check_phrase), Modifier.fillMaxWidth(), transcript.isNotBlank() && !conversation.busy) { speech.stop(); micState = SpeechState.Idle; model.submit(transcript, languageTag, selected) }
         if (account.isDemo) listOf(R.string.sample_0, R.string.sample_1, R.string.sample_2, R.string.sample_3).forEachIndexed { index, resource ->
             val phrase = stringResource(resource)
-            LargeButton(phrase, Modifier.fillMaxWidth().testTag("demo-phrase-$index")) { speech.stop(); micState = SpeechState.Idle; transcript = phrase; model.submit(phrase) }
+            LargeButton(phrase, Modifier.fillMaxWidth().testTag("demo-phrase-$index")) { speech.stop(); micState = SpeechState.Idle; transcript = phrase; model.submit(phrase, languageTag, selected) }
         }
     }
     callContact?.let { ContactCallSheet(it) { callContact = null } }

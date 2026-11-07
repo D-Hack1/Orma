@@ -61,16 +61,106 @@ class OrmaViewModel @Inject constructor(val api: OrmaApi) : ViewModel() {
         }
     }
 
-    fun submit(transcript: String) = runAction {
+    fun submit(transcript: String, languageTag: String = "en-IN", speaker: String? = null) = runAction {
         val command = companionCommand(transcript, records.value.contacts)
         if (command != null) { mutableConversation.value = Conversation(transcript = transcript, command = command); return@runAction }
-        val heard = api.understand(transcript)
+        val heard = runCatching { api.understand(transcript) }.getOrNull()
         mutableConversation.value = Conversation(transcript, heard, message =
-            if (heard.needsClarification) heard.question else "Please check what I heard before saving.")
-        if (!heard.needsClarification && heard.intent == "ask") {
-            val answer = api.askStatus(heard.memberIds.first(), today(), requireNotNull(heard.slot))
-            mutableConversation.value = mutableConversation.value.copy(reply = answer)
+            if (heard == null) "" else if (heard.needsClarification) heard.question else "Please check what I heard before saving.")
+        var grounded: Reply? = null
+        var saved = ""
+        val lower = transcript.lowercase()
+        val negative = Regex("illa|ഇല്ല|not |no\\b|didn|haven").containsMatchIn(lower)
+        val affirmative = Regex("kazhichu|kazhichittund|കഴിച്ചു|കഴിച്ചിട്ടുണ്ട്|took|taken|\\bate\\b|eaten|\\bhad\\b|swallowed|yes|ഉവ്വ്|ശരി|^aa|ആ\\b|done").containsMatchIn(lower)
+        val due = reminder.value
+        val phoneMembers = members.filter { m -> records.value.schedules.any { it.memberId == m.id } }.map { it.id }
+        speakerId = speaker?.takeIf { it.isNotBlank() } ?: phoneMembers.firstOrNull()
+        val isAsk = heard?.intent == "ask" || Regex("\\?|kazhicho|കഴിച്ചോ|കഴിച്ചിട്ടുണ്ടോ|did i|have i|did we|have we|did (amma|achan)").containsMatchIn(lower)
+        val group = Regex("njangal|ഞങ്ങൾ|randuperum|രണ്ടുപേരും|both|\\bwe\\b|\\bus\\b").containsMatchIn(lower)
+        val slotWord = heard?.slot ?: when {
+            Regex("morning|raavile|ravile|രാവിലെ").containsMatchIn(lower) -> Slot.morning
+            Regex("noon|afternoon|lunch|uchakk|ഉച്ച").containsMatchIn(lower) -> Slot.noon
+            Regex("night|evening|rathri|raathri|രാത്രി|dinner").containsMatchIn(lower) -> Slot.night
+            else -> null
         }
+        if (due == null && !isAsk && affirmative && !negative) {
+            val ids = heard?.memberIds?.takeIf { it.isNotEmpty() }
+                ?: if (group) phoneMembers.ifEmpty { listOfNotNull(speakerId) } else listOfNotNull(speakerId)
+            val slot = slotWord ?: currentSlot()
+            val results = ids.map { id ->
+                val max = expected(id, slot) ?: 1
+                val count = (heard?.countTaken ?: max).coerceIn(1, max)
+                runCatching { api.logDose(LogRequest(id, slot = slot, countTaken = count,
+                    medicinesTaken = heard?.medicines.orEmpty(), source = "voice", by = id, transcript = transcript, evidence = heard?.evidence.orEmpty())) }
+                    .onFailure { android.util.Log.w("OrmaLog", "log failed: ${it.message}") }.getOrNull()
+            }.filterNotNull()
+            saved = results.joinToString(" ") { r -> r.reply.textEn }
+            if (results.any { it.result == "duplicate_blocked" }) mutableConversation.value = mutableConversation.value.copy(blocked = true)
+        } else if (due != null && affirmative && !negative) {
+            val result = runCatching { api.logDose(LogRequest(due.first, slot = due.second, countTaken = expected(due.first, due.second) ?: 1,
+                source = "voice", by = due.first, transcript = transcript)) }.getOrNull()
+            if (result != null) { saved = result.reply.textEn; if (result.result == "duplicate_blocked") mutableConversation.value = mutableConversation.value.copy(blocked = true) }
+            reminder.value = null
+        }
+        if (heard != null && !heard.needsClarification && heard.intent == "ask" && heard.slot != null && heard.memberIds.isNotEmpty()) {
+            grounded = runCatching { api.askStatus(heard.memberIds.first(), today(), heard.slot) }.getOrNull()
+        }
+        if (GeminiClient.enabled) {
+            val text = GeminiClient.reply(transcript, languageTag, todayFacts(grounded) +
+                (if (saved.isNotBlank()) "\nJust saved from what the user said now: $saved" else "") +
+                (due?.let { "\nThis was the answer to a medicine-time reminder for ${members.firstOrNull { m -> m.id == it.first }?.name ?: it.first} (${it.second})." } ?: ""))
+            if (text != null) {
+                val unsure = saved.isBlank() && (SupporterCall.shouldCall(text) || (grounded?.textEn?.let(SupporterCall::shouldCall) ?: false))
+                val ml = languageTag.startsWith("ml")
+                val tail = if (unsure) (if (ml) " ഞാൻ ഇപ്പോൾ അനുവിനെ വിളിക്കുന്നു." else " I am calling Anu for you now.") else ""
+                val reply = if (ml) Reply(textEn = (grounded?.textEn ?: text) + tail, textMl = text + tail, sentences = grounded?.sentences.orEmpty())
+                    else Reply(textEn = text + tail, textMl = (grounded?.textMl ?: text) + tail, sentences = grounded?.sentences.orEmpty())
+                mutableConversation.value = mutableConversation.value.copy(reply = reply)
+                if (unsure) callSupporter(transcript, heard?.memberIds?.firstOrNull())
+                return@runAction
+            }
+        }
+        if (grounded != null) mutableConversation.value = mutableConversation.value.copy(reply = grounded)
+        else if (saved.isNotBlank()) mutableConversation.value = mutableConversation.value.copy(reply = Reply(saved, saved))
+    }
+
+    val callStatus = MutableStateFlow("")
+    /** (memberName, question) for the UI layer to text + dial the supporter from this phone. */
+    val dialRequest = MutableStateFlow<Pair<String, String>?>(null)
+    fun callSupporter(question: String, memberId: String? = null) {
+        val name = members.firstOrNull { it.id == memberId }?.name ?: members.firstOrNull { it.name == "Amma" }?.name ?: "Your family member"
+        callStatus.value = "📞 Calling Anu…"
+        dialRequest.value = name to question.ifBlank { "Please call me about my medicine" }
+    }
+
+    private var speakerId: String? = null
+    private fun currentSlot(): Slot { val h = java.time.LocalTime.now(java.time.ZoneId.of("Asia/Kolkata")).hour; return if (h < 11) Slot.morning else if (h < 17) Slot.noon else Slot.night }
+
+    private fun todayFacts(grounded: Reply?): String {
+        val state = records.value
+        val nm = members.associate { it.id to it.name }
+        val perSlot = state.schedules.sortedBy { it.memberId + it.slot.ordinal }.joinToString("\n") { s ->
+            val d = state.doses.firstOrNull { it.memberId == s.memberId && it.slot == s.slot && it.date == today() }
+            val meds = s.medicines.joinToString { "${it.name} ${it.strength}" }
+            "- ${nm[s.memberId] ?: s.memberId}, ${s.slot} (${s.time}; $meds): " +
+                (if (d == null) "NOT RECORDED yet today" else "TAKEN today (${d.status}, recorded ${d.at.take(16)})")
+        }
+        val speakerLine = speakerId?.let { "The person speaking right now is ${nm[it] ?: it}. 'I' / 'me' means ${nm[it] ?: it}." } ?: ""
+        return "$speakerLine\nCurrent dose time: ${currentSlot()}.\nDose status per person and time today:\n$perSlot" +
+            (grounded?.let { "\nSystem record lookup: ${it.textEn}" } ?: "")
+    }
+
+    private fun legacyFacts(grounded: Reply?): String {
+        val state = records.value
+        val names = members.associate { it.id to it.name }
+        val doses = state.doses.filter { it.date == today() }.joinToString("\n") {
+            "- ${names[it.memberId] ?: it.memberId}: ${it.slot} dose ${it.status} at ${it.at}" + (it.countTaken?.let { c -> " ($c of ${it.countExpected ?: "?"} tablets)" } ?: "")
+        }.ifBlank { "- No doses recorded yet today." }
+        val schedule = state.schedules.joinToString("\n") { s ->
+            "- ${names[s.memberId] ?: s.memberId} ${s.slot} at ${s.time}: " + s.medicines.joinToString { "${it.name} ${it.strength} x${it.count} (${it.purpose})" }
+        }
+        return "Today's dose records:\n$doses" + (if (schedule.isNotBlank()) "\nSchedule:\n$schedule" else "") +
+            (grounded?.let { "\nSystem record lookup: ${it.textEn}" } ?: "")
     }
 
     fun log(memberIds: List<String>, slot: Slot, count: Int, source: String = "tap", by: String = "self", transcript: String = "", evidence: List<Evidence> = emptyList(), medicineIds: List<String>? = null) = runAction {

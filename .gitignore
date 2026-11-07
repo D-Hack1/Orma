@@ -1,0 +1,27 @@
+# Secrets — never commit (use .env.example for placeholders)
+.env
+.env.*
+!.env.example
+**/.env.local
+**/.secret.local
+
+# Office lock files
+.~lock.*#
+~$*
+
+# Android / build outputs
+*.apk
+*.aab
+local.properties
+**/build/
+.gradle/
+.idea/
+*.iml
+
+# Node
+node_modules/
+backend/functions/lib/
+
+# OS / editor
+.DS_Store
+*.swp

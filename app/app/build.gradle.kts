@@ -19,6 +19,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "USE_STUB_API", providers.gradleProperty("ormaStub").getOrElse("false"))
         buildConfigField("String", "ORMA_API_URL", "\"${providers.gradleProperty("ormaApiUrl").getOrElse("")}\"")
+        buildConfigField("String", "SUPPORTER_PHONE", "\"${providers.gradleProperty("ormaSupporterPhone").getOrElse("+919746043620")}\"")
+        buildConfigField("String", "GEMINI_API_KEY", "\"${providers.gradleProperty("ormaGeminiKey").getOrElse("")}\"")
     }
     buildFeatures { compose = true; buildConfig = true }
     bundle { language { enableSplit = false } }

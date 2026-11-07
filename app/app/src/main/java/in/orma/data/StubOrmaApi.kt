@@ -14,7 +14,18 @@ class StubOrmaApi(
     private val clock: () -> String = { Instant.now().toString() }
 ) : OrmaApi {
     override val members = fixture.members
-    private val mutableState = MutableStateFlow(initial)
+    private val mutableState = MutableStateFlow(withDefaults(initial))
+
+    private fun withDefaults(state: LocalState): LocalState {
+        val seededMembers = state.members.ifEmpty { fixture.members.map { it.copy(canManage = true) } }
+        val seededSchedules = state.schedules.ifEmpty { defaultSchedules }
+        return state.copy(members = seededMembers, schedules = seededSchedules)
+    }
+
+    override suspend fun saveSchedule(schedule: DoseSchedule) = mutex.withLock {
+        require(schedule.medicines.isNotEmpty()) { "Add at least one medicine." }
+        publish(state.value.copy(schedules = state.value.schedules.filterNot { it.memberId == schedule.memberId && it.slot == schedule.slot } + schedule))
+    }
     override val state = mutableState.asStateFlow()
     private val mutex = Mutex()
 
@@ -31,7 +42,8 @@ class StubOrmaApi(
 
     override suspend fun logDose(request: LogRequest): LogResult = mutex.withLock {
         check(!state.value.storageError) { "Saved records could not be read. Logging is paused; please contact your supporter." }
-        val member = members.firstOrNull { it.id == request.memberId } ?: error("Member not found")
+        val baseMember = members.firstOrNull { it.id == request.memberId } ?: error("Member not found")
+        val member = baseMember.copy(expected = state.value.schedules.firstOrNull { it.memberId == request.memberId && it.slot == request.slot }?.expected ?: baseMember.expected)
         require(request.countTaken in 1..member.expected) { "Choose a count from the confirmed schedule." }
         val existing = state.value.doses.firstOrNull {
             it.memberId == request.memberId && it.date == request.date && it.slot == request.slot
@@ -80,3 +92,23 @@ class StubOrmaApi(
         mutableState.value = next
     }
 }
+
+/** Default demo prescriptions so Gemini and reminders have real medicine names and counts. */
+val defaultSchedules = listOf(
+    DoseSchedule("achan", Slot.morning, "08:00", listOf(
+        Medicine("achan-amlo", "Amlodipine", "5 mg", 1, 28, "Blood pressure"),
+        Medicine("achan-telmi", "Telmisartan", "40 mg", 1, 28, "Blood pressure"),
+        Medicine("achan-vitd", "Vitamin D3", "1000 IU", 1, 30, "Vitamin"))),
+    DoseSchedule("achan", Slot.noon, "13:00", listOf(Medicine("achan-asp", "Aspirin", "75 mg", 1, 25, "Heart"))),
+    DoseSchedule("achan", Slot.night, "20:00", listOf(Medicine("achan-atorva", "Atorvastatin", "10 mg", 1, 4, "Cholesterol"))),
+    DoseSchedule("amma", Slot.morning, "08:00", listOf(
+        Medicine("amma-met", "Metformin", "500 mg", 1, 40, "Diabetes"),
+        Medicine("amma-glim", "Glimepiride", "1 mg", 1, 30, "Diabetes"),
+        Medicine("amma-b12", "Vitamin B12", "500 mcg", 1, 30, "Vitamin"))),
+    DoseSchedule("amma", Slot.noon, "13:00", listOf(Medicine("amma-met2", "Metformin", "500 mg", 1, 40, "Diabetes"))),
+    DoseSchedule("amma", Slot.night, "20:00", listOf(
+        Medicine("amma-met3", "Metformin", "500 mg", 1, 40, "Diabetes"),
+        Medicine("amma-cal", "Calcium", "500 mg", 1, 30, "Bones"))),
+    DoseSchedule("rahul", Slot.morning, "07:30", listOf(Medicine("rahul-thy", "Thyroxine", "50 mcg", 1, 6, "Thyroid"))),
+    DoseSchedule("farhan", Slot.morning, "08:00", listOf(Medicine("farhan-ins", "Insulin glargine", "10 units", 1, 20, "Diabetes")))
+)
