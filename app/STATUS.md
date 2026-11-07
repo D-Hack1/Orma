@@ -56,7 +56,13 @@ Updated: 2026-11-07 14:07 IST (Asia/Kolkata). Requested UI/language/microphone/a
 - User explicitly replaces Firebase with Supabase and supplies new environment files. Supabase is now the integration target; incomplete Firebase adapter/setup changes will be removed from this milestone, while reusing the app setup/voice/schedule UI and backend validation logic.
 - New Supabase URL/server secret verified by read-only checks: Data API reachable, no public tables exposed, email signups enabled, email confirmation required. No account data was listed.
 - The provided `sb_secret_` API key stays in ignored backend configuration. It must never be embedded in Android. Supabase management/database access is still needed to apply the new schema, and a publishable key is needed for the direct Android client.
-- Supabase plugin discovered and suggested as a management connection. Continue preparing SQL/RLS/RPCs and app code while connection is pending.
+- User chose to run the prepared SQL in the Supabase Dashboard themselves. A management plugin connection is no longer pending; dashboard setup and local publishable-key configuration are the outstanding user steps.
+
+### Supabase operator handoff — 2026-11-07
+- Added `backend/supabase/001_orma.sql`: 14 canonical tables, RLS, backend-only RPC, family pairing/ownership, per-member sharing, medicine schedules/stock, guarded dose logging, messages and bounded snoozes. This is an initial integration schema, not a completed port of every Agent Two feature.
+- Validated the migration in isolated PostgreSQL 17 with Supabase-compatible API roles and an Auth fixture. Functional checks passed for ownership/pairing, shared stock, duplicate guard, 10-minute snooze without ingestion, cross-family denial, private counts/schedules, and RPC/table grants. No hosted patient/account data was used.
+- Added `backend/supabase/SETUP.md`, `verify_setup.sql` and a credential-free `.env.example`. User steps: run migration, check email provider/confirmation behavior, create private `orma` bucket, save publishable key locally and run read-only verification.
+- Hosted migration and connected Android/backend acceptance remain pending. The previously installed Pixel APK remains the tested accessibility/demo build; no Supabase-connected Pixel acceptance is claimed.
 
 ## Assistance needed
 - Agent 2 contracts and local setup are received. Next: reconcile v1 wire formats, auth/device bindings, private viewer paths and agreed language output; obtain real project configuration/provider setup for live acceptance.
