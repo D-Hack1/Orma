@@ -8,7 +8,7 @@ export function requireAuth(request: Pick<CallableRequest, "auth">): string {
 }
 
 export function documentId(value: unknown, name: string): string {
-  if (typeof value !== "string" || !value || value.includes("/") || value.length > 128) {
+  if (typeof value !== "string" || !value || value === "." || value === ".." || value.includes("/") || value.length > 128) {
     throw new HttpsError("invalid-argument", `Invalid ${name}.`);
   }
   return value;

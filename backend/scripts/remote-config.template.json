@@ -1,0 +1,8 @@
+{
+  "conditions": [],
+  "parameters": {
+    "orma_t1_min_ram_mb": { "defaultValue": { "value": "3072" }, "valueType": "NUMBER" },
+    "orma_t1_min_android_sdk": { "defaultValue": { "value": "29" }, "valueType": "NUMBER" },
+    "orma_live_fl_enabled": { "defaultValue": { "value": "false" }, "valueType": "BOOLEAN" }
+  }
+}

@@ -10,10 +10,10 @@ const optionalFlags = z.object({
 }).strict();
 const input = z.object({
   familyId: z.string(), memberId: z.string(),
-  changes: optionalFlags.extend({ perSupporter: z.record(z.string(), optionalFlags).optional() }).strict(),
+  changes: optionalFlags.extend({ supporterId: z.string().optional() }).strict(),
 }).strict();
 
-export const setSharing = onCall({ region: "asia-south1" }, async request => {
+export const setSharing = onCall({ region: "asia-south1", enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true" }, async request => {
   const uid = requireAuth(request);
   const parsed = input.safeParse(request.data);
   if (!parsed.success) throw new HttpsError("invalid-argument", "Invalid sharing changes.");
@@ -21,13 +21,24 @@ export const setSharing = onCall({ region: "asia-south1" }, async request => {
   const context = await resolveMemberAccess(uid, familyId, memberId);
   if (!context.isOwner && !context.isGuardian) throw new HttpsError("permission-denied", "Only the member or recorded guardian can change sharing.");
   const settings = context.memberRef.collection("settings").doc("sharing");
+  const { supporterId, ...flags } = changes;
+  if (supporterId !== undefined && (!supporterId.trim() || supporterId.includes("/") || supporterId.length > 128)) {
+    throw new HttpsError("invalid-argument", "Invalid supporterId.");
+  }
   await db.runTransaction(async transaction => {
-    const current = (await transaction.get(settings)).data() ?? {};
+    const [settingsDoc, accessDoc, memberDoc] = await transaction.getAll(settings, db.doc(`families/${familyId}/access/${uid}`), context.memberRef);
+    const current = settingsDoc.data() ?? {};
+    const access = accessDoc.data();
+    if (!access?.active || !access.memberIds?.includes(memberId)) throw new HttpsError("permission-denied", "Membership has changed.");
+    const stillOwner = memberDoc.data()?.ownerUid === uid;
     // Recheck guardian authority inside the transaction; clients cannot appoint guardians.
-    if (!context.isOwner && !(current.guardianId === uid && typeof current.capacityNote === "string" && current.capacityNote.trim())) {
+    if (!stillOwner && !(current.guardianId === uid && typeof current.capacityNote === "string" && current.capacityNote.trim())) {
       throw new HttpsError("permission-denied", "Guardian authority has changed.");
     }
-    transaction.set(settings, { ...changes, doseStatus: true, version: (current.version ?? 0) + 1, updatedBy: uid, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    const patch = supporterId
+      ? { perSupporter: { ...current.perSupporter, [supporterId]: { ...current.perSupporter?.[supporterId], ...flags } } }
+      : flags;
+    transaction.set(settings, { ...patch, doseStatus: true, version: (current.version ?? 0) + 1, updatedBy: uid, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
   });
   // Rules already reject revoked optional data; remove stale derived content before returning.
   const viewers = await db.collection(`families/${familyId}/views`).get();
@@ -36,5 +47,5 @@ export const setSharing = onCall({ region: "asia-south1" }, async request => {
   for (const viewer of ids) {
     await db.recursiveDelete(db.doc(`families/${familyId}/views/${viewer}/members/${memberId}`));
   }
-  return { memberId, sharing: (await settings.get()).data() };
+  return { saved: true, sharing: (await settings.get()).data(), textMl: "നിങ്ങളുടെ പങ്കിടൽ ക്രമീകരണം മാറ്റി.", textEn: "Your sharing settings were updated." };
 });

@@ -3,6 +3,9 @@ import { afterAll, beforeAll, beforeEach, expect, test } from "vitest";
 import { initializeTestEnvironment, assertFails, assertSucceeds, RulesTestEnvironment } from "@firebase/rules-unit-testing";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { documentId, requireAuth, sharingAllowed } from "../src/platform/auth";
+import { setSharing } from "../src/platform/sharing";
+import { assertEmulator, demoDate, seedDemo } from "../src/platform/seed";
+import { ref, uploadBytes, getBytes } from "firebase/storage";
 
 let env: RulesTestEnvironment;
 const base = "families/demo";
@@ -77,4 +80,53 @@ test("callable identity and ID validation fail closed", () => {
   expect(() => documentId("../other", "memberId")).toThrow();
   expect(documentId("amma", "memberId")).toBe("amma");
   expect(sharingAllowed({ isOwner: false, uid: "rahul", sharing: { counts: true, perSupporter: { rahul: { counts: false } } } } as any, "counts")).toBe(false);
+});
+test("sharing callable rejects supporters, self-appointed guardians and locked fields", async () => {
+  const call = (uid: string, changes: object) => setSharing.run({ auth: { uid, token: {} }, data: { familyId: "demo", memberId: "amma", changes } } as any);
+  await expect(call("rahul", { counts: true })).rejects.toMatchObject({ code: "permission-denied" });
+  await expect(call("amma", { guardianId: "rahul" })).rejects.toMatchObject({ code: "invalid-argument" });
+  await expect(call("amma", { doseStatus: false })).rejects.toMatchObject({ code: "invalid-argument" });
+  const result = await call("amma", { supporterId: "rahul", messages: false });
+  expect(result.saved).toBe(true);
+  expect(result.sharing?.perSupporter.rahul.messages).toBe(false);
+  await env.withSecurityRulesDisabled(async ctx => {
+    expect((await getDoc(doc(ctx.firestore(), `${base}/views/rahul/members/amma/doses/today_morning`))).exists()).toBe(false);
+    await setDoc(doc(ctx.firestore(), `${base}/members/amma/settings/sharing`), { guardianId: "rahul", capacityNote: "" });
+  });
+  await expect(call("rahul", { counts: true })).rejects.toMatchObject({ code: "permission-denied" });
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), `${base}/members/amma/settings/sharing`), { guardianId: "rahul", capacityNote: "Synthetic recorded guardian order", version: 2 }));
+  expect((await call("rahul", { counts: false })).saved).toBe(true);
+});
+test("Storage only accepts bounded owner uploads; derived exports never public", async () => {
+  const image = new Uint8Array([1, 2, 3]);
+  const owner = env.authenticatedContext("amma").storage();
+  const path = "families/demo/members/amma/uploads/photo.jpg";
+  await assertSucceeds(uploadBytes(ref(owner, path), image, { contentType: "image/jpeg" }));
+  await assertFails(uploadBytes(ref(env.authenticatedContext("rahul").storage(), path), image, { contentType: "image/jpeg" }));
+  await assertFails(getBytes(ref(env.authenticatedContext("rahul").storage(), path)));
+  await assertFails(uploadBytes(ref(owner, "families/demo/members/amma/uploads/bad.html"), image, { contentType: "text/html" }));
+  await assertFails(getBytes(ref(owner, "families/demo/members/amma/reports/private.pdf")));
+});
+test("seed guard rejects cloud hosts/projects and invalid dates", () => {
+  expect(() => assertEmulator({})).toThrow();
+  expect(() => assertEmulator({ GCLOUD_PROJECT: "production", FIRESTORE_EMULATOR_HOST: "127.0.0.1:8080", FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099" })).toThrow();
+  expect(() => assertEmulator({ FIRESTORE_EMULATOR_HOST: "remote.example:8080", FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099" })).toThrow();
+  expect(() => demoDate("2026-02-30")).toThrow();
+  expect(demoDate("2026-11-07")).toBe("2026-11-07");
+});
+test("seed expands 30-day fixture, shifts to today, reset preserves unrelated namespaces", async () => {
+  await seedDemo(false, "2026-11-08");
+  await env.withSecurityRulesDisabled(async ctx => {
+    const db = ctx.firestore();
+    expect((await getDoc(doc(db, "families/demo-family/members/amma/doses/2026-11-07_noon"))).data()?.countExpected).toBe(3);
+    expect((await getDoc(doc(db, "families/demo-family/views/rahul/members/amma/doses/2026-11-07_noon"))).data()).not.toHaveProperty("countTaken");
+    expect((await getDoc(doc(db, "families/demo-family/access/mini"))).data()?.memberIds).toEqual(["achan", "amma"]);
+    await setDoc(doc(db, "families/demo-family/members/amma/messages/delete-me"), { text: "stale" });
+    await setDoc(doc(db, "families/unrelated"), { preserve: true });
+  });
+  await seedDemo(true, "2026-11-08");
+  await env.withSecurityRulesDisabled(async ctx => {
+    expect((await getDoc(doc(ctx.firestore(), "families/demo-family/members/amma/messages/delete-me"))).exists()).toBe(false);
+    expect((await getDoc(doc(ctx.firestore(), "families/unrelated"))).exists()).toBe(true);
+  });
 });
