@@ -15,10 +15,18 @@
 In Kerala, many elderly parents live at home while their children work in the Gulf, in other states, or abroad. Every day the same worried question comes up: **"Did you take your medicine?"** Elders forget whether they took a dose, and some take it twice. People with vision, hearing, speech, motor or memory difficulties can't use normal reminder apps. Many rural elders own only a **keypad phone**.
 
 **Orma** is built on five ideas:
-1. **No app to open.** Long-press the power button and speak Malayalam. On a keypad phone, simply answer an automated call and press 1.
-2. **It understands, it protects, and it never guesses.** It handles Malayalam and Manglish, tablet counts, and "both of us took it". It blocks double doses, and it answers only from what was actually recorded.
-3. **The whole family is in one tree.** Children, parents, the home nurse and independent adults each get a screen suited to their abilities and their phone.
-4. **Explainable.** Every answer, alert and prediction has a **"Why?"**. It shows exactly what Orma heard, who logged what, and which factors raised a risk.
+1. **No app to open.** Long-press the power button and speak Malayalam. On a keypad phone, just answer the call and **talk**. Gemini understands the reply, even on a ₹1,000 phone.
+2. **Generative AI throughout, grounded in records.** Gemini covers six jobs:
+   - understands Malayalam/Manglish speech
+   - reads **handwritten prescriptions** and medicine strips
+   - holds spoken conversations on keypad calls
+   - writes natural answers in Malayalam
+   - writes daily family summaries
+   - writes doctor-visit summaries
+
+   Every generated sentence must **cite a real record**. Sentences without a citation are rejected, so Orma never guesses.
+3. **The elder comes first; the whole family supports.** The elder owns their own data and decides what is shared. Children, nurses and co-caregivers are *supporters*, not supervisors. Each person gets a screen that suits their abilities and their phone.
+4. **Explainable.** Every answer, alert and prediction has a **"Why?"** that shows exactly what Orma heard, which records support each sentence, who logged what, and which factors raised a risk.
 5. **Private by design (federated learning).** Orma learns which doses are likely to be missed **on each phone**. Sensitive behaviour signals (such as how often someone asks "did I take it?") never leave the phone. Only anonymised model updates are combined across families.
 
 ## 2. Problem
@@ -32,6 +40,16 @@ In Kerala, many elderly parents live at home while their children work in the Gu
 | Home nurses keep paper notes, or nothing | Families with paid carers | Doses repeated or missed when shifts change |
 | AI makes decisions nobody can check | Families, doctors | Low trust; mistakes nobody notices |
 | Health apps upload everything | Everyone | Privacy fears, especially around memory and cognitive signals |
+
+### 2.1 Why Orma is different from what already exists
+| Existing solution | What it does | What Orma adds |
+|---|---|---|
+| Medisafe, MyTherapy, phone reminders | Reminders + tick boxes in English; needs reading and tapping | Malayalam speech, power-button access, answers "did I already take it?", blocks double doses, accessibility modes |
+| Alexa / Google Assistant reminders | Voice reminders on smart speakers | Works on keypad phones and cheap Androids; understands Malayalam code-mix; grounded answers with citations; family + nurse in one record |
+| **99DOTS** (India, TB) | Missed-call adherence for one disease | **Conversational GenAI** on the call (she speaks, doesn't just dial); any medicine; prescription vision; family/nurse loop; double-dose guard |
+| Paper charts kept by home nurses | Manual notes | A shared, live, explainable record kept by the nurse, family and elder together |
+
+**Orma's one-line difference:** *the only medicine companion that lets anyone, on any phone, simply say what they did in their own Malayalam and get a truthful, cited answer later.*
 
 ## 3. Personas
 | Persona | Profile | Phone | What they need |
@@ -64,8 +82,9 @@ In Kerala, many elderly parents live at home while their children work in the Gu
 ### 5.1 Roles and permissions
 | Role | Can | Cannot |
 |---|---|---|
-| **Owner (caregiver)**, e.g. Anu | Create the family, add members, set schedules, assign nurses, see everything, log on someone's behalf, set the duty roster | — |
-| **Co-caregiver**, e.g. Rahul | Everything the owner can, except delete the family or remove the owner | Remove the owner |
+| **Elder / member (data owner)**, e.g. Achan, Amma | **Owns their own record.** Decides what supporters can see (§5.5). Can remove any supporter. Logs doses, asks questions, sends messages | — |
+| **Lead supporter**, e.g. Anu | Sets up the family *with the elder's consent*, adds members, enters schedules (from prescription photos), assigns nurses, sees what the elder shares, logs on someone's behalf, sets the duty roster | See anything the elder has not shared; stay on as supporter if the elder removes them |
+| **Supporter**, e.g. Rahul | Same as the lead supporter, except deleting the family | Remove the lead supporter |
 | **Home nurse**, e.g. Mini | See **only the patients assigned to her**; log "given by nurse"; add notes; get messages; *suggest* schedule changes | Edit schedules; see unassigned members; access anything once removed |
 | **Assisted member** | Log doses, ask questions, send messages | Edit their own schedule |
 | **Keypad member** | Answer calls, press keys, give a missed call to get a callback | — (has no app) |
@@ -95,6 +114,18 @@ One person can hold more than one role (e.g. Rahul is both co-caregiver and an i
 - The roster says who is on duty, e.g. "Anu: weekends · Rahul: weekdays · Nurse: Mon–Fri 9–5". Alerts go only to the person on duty.
 - Escalation: the on-duty person gets 5 minutes, then the nurse (if on shift), then all caregivers.
 - Handover takes one tap, e.g. "Hand over to Rahul until Monday".
+
+### 5.5 The elder controls what is shared (dignity first)
+- **Shared by default** (the minimum needed for safety): dose status (taken / missed / unknown) and double-dose alerts.
+- **Shared only if the elder turns it on:**
+  - tablet counts
+  - message content
+  - risk score
+  - "asked twice" signals in the daily summary
+  - nurse notes
+- Elders change these settings **by voice**, e.g. *"Ente marunnu vivaram Rahul-nu kaanikkanda"* ("Don't show my medicine details to Rahul"). The caregiver can't override this.
+- **Capacity:** if a doctor says the elder can't consent (advanced dementia), a named legal guardian can manage sharing. This is shown on the screen and recorded.
+- **Language rules:** the UI always says "supporters", never "monitoring". The summary says "Amma took…", never "Amma failed…".
 
 ## 6. Account modes (the app's screens change per user)
 Setup asks 3 questions, by voice or tap (or the caregiver answers them):
@@ -144,10 +175,17 @@ Orma checks the phone on first launch and keeps checking while it runs. It picks
 8. **Home-screen widget** (Jetpack Glance). Shows today's 3 slots; tap a slot to log it. Different versions for Assisted, Independent and Caregiver.
 9. **Travel / time-zone mode.** Dose times are stored in the member's local time. The caregiver sees both times, e.g. "8:15 AM IST (6:45 AM Dubai)". When an independent user travels, Orma asks whether to keep the same gaps between doses or switch to local times. For insulin and other time-critical medicines it says "check with your doctor".
 10. **"Ee gulika enthinaa?" ("What is this tablet for?")** Answered **only from data the family entered or confirmed**; otherwise "I'll ask Anu." Also available on keypad calls (press 4).
-11. **Stretch features:**
-    - **Prescription photo → schedule** (the caregiver confirms each line).
-    - **Pill-box photo check** (Unknown → Confirmed).
-    - **Reminders in a family member's real recorded voice** (never AI-cloned).
+11. **Prescription → schedule with Gemini vision (G2, P0).** The caregiver or nurse photographs the prescription. It can be **handwritten**, or a printed hospital discharge sheet.
+    - Gemini extracts medicine, strength, dose, frequency (e.g. 1-0-1), before/after food, and duration. Each line gets a confidence level and a **box drawn on the photo** around the exact text it came from.
+    - The caregiver confirms **every line** on a side-by-side screen. Unclear lines are flagged "ask pharmacist/doctor" and are never auto-added.
+    - Confirmed lines become the schedule, and the strip count sets the starting stock.
+12. **Medicine-strip check (G6, P1).** "Ithu ethaa?" ("Which one is this?") while showing a strip → Gemini reads the strip's name and strength and **matches it only against this member's confirmed schedule**: "This is your BP tablet. You take it in the morning." If there's no match: "This is not on your list. Please ask Anu or the pharmacist." It **never** identifies medicines from general knowledge.
+13. **Pill-box photo check (P1, previously a stretch goal).** If the status is Unknown, or she says "taken" but she's at high risk, Orma asks her to show today's pill-box compartment. Gemini vision checks it → **✅ photo-verified**, which is a stronger record than a self-report (answers the "she might misremember" criticism).
+14. **Daily family summary (G4, P1).** Every evening Gemini writes a short **voice note + text**, in the language each supporter chooses, using only what the elder shares:
+    - *"Amma took morning and night. At noon she took 2 of 3 and is checking about the vitamin. She asked about the night tablet twice (shared with her permission). Sister Mini noted BP 140/90."*
+    - Every sentence cites its records, and tapping a sentence shows its sources.
+15. **Doctor-visit summary (G5, P1).** One tap → Gemini writes a one-page clinical summary covering adherence % per medicine, missed and partial patterns, side effects mentioned in messages, nurse vitals, and refill gaps. Each line is cited. It can be exported as PDF or shared on WhatsApp for the next appointment.
+16. **Reminders in a family member's real recorded voice (stretch).** Never AI-cloned.
 
 ## 9. Keypad phones: automated calls (T4), must have
 **Setup by the caregiver:**
@@ -155,17 +193,28 @@ Orma checks the phone on first launch and keeps checking while it runs. It picks
 2. A **consent call** first: "Press 1 to agree." No calls are scheduled without consent.
 3. Save the Orma number on her phone as **"Anu Marunnu"** ("Anu Medicine").
 
-**The call at dose time:**
+**The call at dose time is a conversation (G1). Key presses stay as a backup:**
 ```
-📞 "Namaskaram Ammoomma. Anu-nte marunnu orma. Raavile ulla gulika kazhicho?"
-   ("Hello Ammoomma. Anu's medicine reminder. Did you take your morning tablets?")
-  1 → Taken       → "How many? Press the number." → count check → ✅ / 🟡
-  2 → Not yet     → "Please take it now. I'll call again in 15 minutes."
-  3 → Talk to Anu → record a message → appears in Anu's app (audio + text)
-  4 → What is this tablet for? (from entered data only)
-  9 → Repeat
+📞 "Namaskaram Ammoomma. Anu-nte marunnu orma. Raavile ulla gulika kazhicho?
+    Paranjal mathi — allenkil 1 amarthuka."
+   ("Hello Ammoomma. Your medicine reminder from Anu. Did you take your morning tablets?
+     Just tell me — or press 1.")
+  🗣 She speaks: "Kazhichu, randu ennam, BP-de baakki undu"
+     ("Took them, two of them, the BP one is still left")
+     → <Record> (stops on silence) → Gemini (audio → intent JSON with evidence spans)
+     → logDose (partial: BP pending)
+     → grounded Malayalam reply generated → Cloud TTS → <Play>:
+       "Shari, randu kazhichu. BP gulika koodi kazhikkane." ("Okay, you took two. Please take the BP tablet too.")
+  🗣 She asks: "Njan raavile kazhicho?" ("Did I take it this morning?")
+     → grounded answer from her records, with citations
+  🗣 She says: "Anu-vodu parayu, kaal vedana undu" ("Tell Anu my leg hurts")
+     → Parayu message to Anu
+  Unclear speech twice / silence → falls back to key presses:
+     1 Taken → count · 2 Not yet · 3 Talk to Anu · 4 What is this tablet for? · 9 Repeat
 No answer → retry at +15 and +30 minutes → ❓ Unknown → escalate
 ```
+- **Speed target:** under 4 s per turn. A short "Shari…" ("Okay…") filler plays while Gemini is thinking. Common replies are pre-generated audio; only new ones are generated live.
+- Turn-based for the hackathon (`<Record>` → reply). The production upgrade is real-time two-way streaming (Twilio Media Streams + Gemini Live API).
 - **No call is placed if the dose is already logged** (e.g. by the nurse).
 - Prompts are slow, every option is said twice, and there's a long wait for key presses.
 - **Missed-call service:** she calls the Orma number. The server declines the call without answering (`<Reject>`), so it costs her nothing, then calls her back with the menu: 1 = I took it now · 2 = did I take it? · 3 = message Anu · 4 = what is this tablet for?
@@ -183,8 +232,21 @@ No answer → retry at +15 and +30 minutes → ❓ Unknown → escalate
 - **Urgent words** (nenju vedana "chest pain", veenu "fell", swasam muttal "can't breathe", thala karakkam "dizzy") → a 🔴 alert to everyone on duty at once, plus a suggestion to call 108 (ambulance). Orma clearly says it is **not** an emergency service.
 - Replies are played out loud and shown as captions. The nurse can mark "Visit done", add notes ("BP 140/90"), and suggest schedule changes.
 
-## 11. Never-guess safety rule
-**The AI only words the answers. It never decides the facts.**
+## 11. Never-guess safety rule: grounded generation with citations (G3)
+**Gemini writes every answer, but each factual claim must cite a real record. The server rejects anything without a citation.**
+
+**How a grounded answer is built:**
+1. The code builds a **fact pack**: only the records relevant to the question, each with an ID, e.g. `D1 = dose 2026-11-07_morning confirmed 08:15 voice "raavile kazhichu"`, `S2 = schedule night: Metformin 500, Atorva 10`, `N3 = nurse note 11:00 BP 140/90`. Fields the elder hasn't shared are left out.
+2. Gemini is told: *"Answer in simple Malayalam using ONLY these facts. Return `sentences[{text, cites:[ids]}]`. If the facts don't answer the question, return `{insufficient: true}`."*
+3. **Server checks:**
+   - every sentence has at least one citation
+   - every cited ID exists in the fact pack
+   - times and numbers in the text match the cited records (regex + compare)
+   - no medicine names appear that aren't in the fact pack
+   - any failure → that sentence is dropped. If nothing valid remains → the deterministic template below.
+4. `insufficient` → the ❓ Unknown reply + alert. **Orma never guesses.**
+
+The table below still sets the meaning of each status. These templates are what Orma falls back to whenever generation fails the checks:
 
 | Status | Source | Reply |
 |---|---|---|
@@ -208,6 +270,10 @@ Explainability here means three things people can check. It doesn't only explain
 - `understand` returns **evidence spans**: the exact words in the transcript behind each field, e.g. `"randuperum"` → members = both, `"3"` → count = 3, `"raavile"` → slot = morning.
 - **The server checks that each span really appears in the transcript.** Made-up spans are dropped. If a required field has no span, Orma asks a follow-up question instead.
 - The app **highlights those words in the caption** (colour + underline, read out by TalkBack), so the elder, nurse or caregiver can see what Orma heard. On the dashboard: "Logged from: '*njangal **randuperum** **raavile** marunnu kazhichu*'".
+
+### 12.1b Why does the answer say this? (citations)
+- Every generated sentence (answers, daily summaries, doctor summaries) carries the IDs of the records it cites. Tap a sentence (or ask "Enthaa angane?" / "Why?") → see or hear the source records.
+- Prescription extraction shows a **box drawn on the photo** for each extracted line, so the caregiver can see exactly where on the prescription it was read.
 
 ### 12.2 Why is this the status? (decision provenance)
 - Every dose record has an **evidence trail** `evidence[]`: who logged it, how, when, transcript snippet or keypad digits, number of attempts.
@@ -264,11 +330,15 @@ Explainability here means three things people can check. It doesn't only explain
 | Task | Engine | Output |
 |---|---|---|
 | Understanding speech | **Gemini Flash-class** (audio in, schema-constrained JSON out) | `{transcript, intent, members[], slot, count, medicines[], snoozeReason, messageTo, messageText, urgency, needsClarification, clarifyQuestion, evidence[{field, span}]}` |
-| Reply wording | Gemini Flash | Natural Malayalam built on a template (facts checked) |
-| "Why?" wording | Gemini Flash | Turns the evidence trail / risk contributions into a simple sentence (facts checked) |
+| **Grounded answers (G3)** | Gemini Flash | `sentences[{text, cites[]}]` or `{insufficient}` → checked by the server (§11) |
+| **Conversational keypad call (G1)** | Gemini Flash (audio in) + Cloud TTS | Each spoken turn → intent + grounded reply → audio played back on the call |
+| **Prescription → schedule (G2)** | Gemini Pro-class vision | `lines[{medicine, strength, dose, frequency, food, duration, confidence, bbox}]` → **caregiver confirms every line** |
+| **Medicine-strip check (G6)** | Gemini Pro vision | `{readName, readStrength, matchedMedicineId \| null, confidence}`. Only matched against the member's own schedule |
+| **Daily family summary (G4)** | Gemini Flash | Cited sentences → text + TTS voice note, in each supporter's language |
+| **Doctor summary (G5)** | Gemini Pro | Cited clinical summary → PDF |
+| "Why?" wording | Gemini Flash | Evidence trail / risk contributions → simple sentence (facts checked) |
 | Translating messages | Gemini Flash | Malayalam ↔ the nurse's language |
-| Reading prescriptions (stretch) | Gemini Pro-class vision | List of medicines → the **caregiver confirms** |
-| Pill-box check (stretch) | Gemini Pro vision | `{slotEmpty: true \| false \| uncertain}` |
+| Pill-box check (P1) | Gemini Pro vision | `{slotEmpty: true \| false \| uncertain}` |
 | Missed-dose risk | **On-phone logistic regression** (trained with FL) | Probability + per-factor contributions |
 | Fallback | **OpenAI** (speech-to-text + mini model with Structured Outputs) | Same structured output |
 | Offline | Android `SpeechRecognizer` (offline when possible) + keyword matching | Basic intent |
@@ -349,6 +419,13 @@ families/{familyId}: name, ownerId, timezone, roster[{memberId, role, days, from
     risk/{YYYY-MM-DD_slot}: p, level: low|med|high, modelVersion,
       contributions[{feature, value, delta}]          ← written by the phone
     messages/{id}: from, to, audioUrl, text, translated, urgency, readAt
+    sharing: {doseStatus: true(locked), counts, messages, risk, askedTwice, nurseNotes,
+              perSupporter{supporterId: {...overrides}}, guardianId?, capacityNote?}
+    prescriptions/{id}: photoUrl, extractedLines[{medicine, strength, dose, frequency,
+              food, duration, confidence, bbox}], confirmedBy, confirmedAt, status
+    answers/{id}: question, factPackIds[], sentences[{text, cites[]}], fallbackUsed, at
+    digests/{YYYY-MM-DD}: sentences[{text, cites[]}], audioUrl per language, sentTo[]
+    reports/{id}: range, sections[{title, sentences[{text, cites[]}]}], pdfUrl
 devices/{deviceId}: familyId, memberIds[], tier, capabilities{}
 calls/{callId}: memberId, slot, date, attempt, status, digits[], providerSid
 alerts/{id}: familyId, memberId, type: missed|partial|double|unknown|stock|urgent|risk,
@@ -362,7 +439,14 @@ flUpdates/{round}/clients/{anonId}: delta[], n, clipNorm, at   ← server-only a
 |---|---|---|
 | `understand` | callable | `{deviceId, memberIds[], audioBase64? \| transcript?, clientTime, tz}` → understanding JSON incl. verified `evidence[]` |
 | `logDose` | callable | `{memberId, date, slot, countTaken, medicinesTaken[], source, by, evidence}` → `{result: logged\|partial\|duplicate_blocked, status, reply{templateId, vars, textMl, textEn}}` |
-| `askStatus` | callable | `{memberId, date, slot?}` → `{status, reply}` |
+| `askStatus` / `answer` | callable | `{memberId, question \| {date, slot}}` → `{status, sentences[{text, cites[]}], fallbackUsed, textMl, textEn}` (grounded, G3) |
+| `parsePrescription` | callable | `{memberId, photoUrl}` → `{prescriptionId, lines[…with bbox, confidence]}` |
+| `confirmPrescription` | callable | `{prescriptionId, lines[{…, accepted}]}` → schedule written |
+| `checkStrip` | callable | `{memberId, photoUrl}` → `{matchedMedicineId?, readName, sentences[]}` |
+| `checkPillbox` | callable | `{memberId, slot, photoUrl}` → `{slotEmpty, status}` |
+| `dailyDigest` | scheduled 20:00 + callable | → `digests/{date}` + FCM to supporters |
+| `doctorReport` | callable | `{memberId, from, to}` → `{reportId, pdfUrl}` |
+| `setSharing` | callable | `{memberId, changes}` (only the member or their guardian may call it) |
 | `explain` | callable | `{memberId, date, slot, kind: status\|alert\|risk}` → `{reasons[], textMl, textEn}` |
 | `snooze` | callable | `{memberId, slot, reason}` → `{remindAt}` |
 | `sendMessage` | callable | `{fromId, to, audioUrl?, text}` → `{messageId, urgency}` |
@@ -378,9 +462,9 @@ Reply and "why" templates are in **`contracts/replies.json`** (Malayalam + Engli
 ## 20. Priorities
 | Priority | Scope |
 |---|---|
-| **P0: must work on stage** | Power-button voice logging · tablet counts / partial · double-dose guard · never-guess · family tree + live dashboard · group logging · **keypad automated call** · Independent quiet notification ✓ · **"Why?" evidence trail + highlighted words (XAI 12.1–12.2)** |
-| **P1: should have** | Nurse role + Parayu · refill warning · snooze with a reason · tier detection + offline fallback · dose-time check-ins · missed-call callback · **risk model + explanations (12.3)** · **FL simulator + pitch chart** |
-| **P2: stretch** | **Live on-phone FL round (WorkManager trainer + flSubmit/flAggregate)** · widget · duty roster/handover · explain medicine · prescription photo · pill-box photo · recorded-voice reminders · SMS · time-zone mode |
+| **P0: must work on stage** | Power-button voice logging · tablet counts / partial · double-dose guard · **grounded answers with citations (G3)** · family tree + live dashboard · group logging · **conversational keypad call (G1)** · **prescription vision → schedule (G2)** · elder sharing controls (default + voice toggle) · Independent quiet notification ✓ · "Why?" evidence trail + highlighted words |
+| **P1: should have** | Nurse role + Parayu · **daily family summary (G4)** · **doctor summary (G5)** · **strip check (G6)** · **pill-box photo check** · refill warning · snooze with a reason · tier detection + offline fallback · dose-time check-ins · missed-call callback · risk model + explanations · FL simulator + pitch chart |
+| **P2: stretch** | Live on-phone FL round · widget · duty roster/handover · explain medicine · recorded-voice reminders · SMS · time-zone mode · real-time streaming call (Media Streams + Gemini Live) |
 | **P3: roadmap** | iOS caregiver app (Kotlin Multiplatform) · Flower-based FL + secure aggregation · doctor report · beyond medicine · Exotel + DLT |
 
 ## 21. Execution overview
@@ -400,16 +484,16 @@ Phones are shown on the projector with **scrcpy**. Anu's caregiver app runs on a
 
 | Time | Scene | Judges see |
 |---|---|---|
-| 0:00–0:20 | The problem: Achan and Amma (Kottayam), Anu (Dubai), Ammoomma with a keypad phone (Idukki) | Persona slide |
-| 0:20–0:50 | Locked phone → long-press power → *"Njangal randuperum raavile marunnu kazhichu"* ("Both of us took our morning medicine") | **Both** turn ✅ live; the words *randuperum* and *raavile* are **highlighted** (XAI) |
-| 0:50–1:05 | *"Uchakku 2 gulika"* ("2 tablets at noon") → "Is the vitamin one left?" | 🟡 Partial |
-| 1:05–1:15 | Achan tries to log the morning dose again | Double-dose guard |
-| 1:15–1:35 | *"Raathri gulika kazhicho?"* ("Did I take my night tablets?") → no record → "Not sure, wait, calling Anu" → Anu taps **Why?** | The evidence trail: "no log · check-ins unanswered" |
-| 1:35–2:00 | **The keypad phone rings on stage** → (trial message → any key) → press 1 → count 1 | Ammoomma ✅ on the dashboard |
-| 2:00–2:15 | *"Nurse-nodu parayu, thalavedana undu"* ("Tell the nurse I have a headache") | The message appears on the nurse's phone |
-| 2:15–2:30 | Dashboard risk badge: "Night risk High · missed 3/7 (+28%) · nurse off (+12%)" | Explainable prediction |
-| 2:30–2:45 | FL slide: "Memory signals never leave the phone" + accuracy-per-round chart + the live model version number | Federated learning |
-| 2:45–3:00 | Impact + accessibility matrix | Closing |
+| 0:00–0:15 | The problem: Achan & Amma (Kottayam), Anu (Dubai), Ammoomma on a keypad phone (Idukki), Farhan (deaf). "Amma decides what's shared." | Persona slide |
+| 0:15–0:35 | Anu photographs a **handwritten prescription** → Gemini extracts the lines with boxes drawn on the photo → she confirms → schedule appears | **GenAI vision (G2)** |
+| 0:35–0:55 | Locked phone → long-press power → *"Njangal randuperum raavile marunnu kazhichu"* ("Both of us took our morning medicine") | **Both** turn ✅ live; *randuperum* / *raavile* **highlighted** |
+| 0:55–1:10 | *"Uchakku 2 gulika"* ("2 tablets at noon") → "Is the vitamin left?" · Achan tries to log the morning dose again → **double-dose guard** | 🟡 Partial + guard |
+| 1:10–1:30 | *"Njan raathri gulika kazhicho?"* ("Did I take my night tablet?") → grounded "not sure, wait, asking Anu" · *"Raavile?"* ("And this morning?") → "Yes, 8:15 after breakfast" → tap → **citation D1** | **Grounded GenAI with citations (G3)** |
+| 1:30–2:00 | **The keypad phone rings on stage** → (trial preamble) → Ammoomma **speaks** "kazhichu, randu ennam" ("took them, two") → Orma replies in Malayalam | **Conversational GenAI on a keypad phone (G1)** + ✅ live |
+| 2:00–2:15 | Farhan (deaf), sound off: silent notification → ✓ → captions → strip check "ithu ethaa?" ("which one is this?") → "Your insulin pen needle? Not on your list, ask your pharmacist" | **Disability scene + G6** |
+| 2:15–2:30 | Amma: *"Ente marunnu vivaram Rahul-nu kaanikkanda"* ("Don't show my medicine details to Rahul") → Rahul's view now shows status only | **Dignity: elder controls sharing** |
+| 2:30–2:45 | Anu gets the **daily voice summary** (cited) · one tap → **doctor summary PDF** · risk badge with its reasons | G4 / G5 / XAI |
+| 2:45–3:00 | FL slide ("memory signals never leave the phone") + impact + accessibility matrix | Closing |
 
 ## 23. Testing
 - **Device:** set Orma as the default assistant → long-press power while locked → speak → dashboard updates in under 3 s.
@@ -423,6 +507,7 @@ Phones are shown on the projector with **scrcpy**. Anu's caregiver app runs on a
 - **Tiers:** on a 1–2 GB emulator, T2 is chosen and the core flow is smooth.
 
 ## 24. Privacy and ethics
+- **The elder owns the data:** the elder controls sharing (§5.5). A guardian takes over only with a recorded capacity note.
 - **Consent:**
   - In the app at setup; for keypad members, through the consent call.
   - **Taking part in FL is opt-in** (`consent.fl`).
@@ -448,6 +533,13 @@ Phones are shown on the projector with **scrcpy**. Anu's caregiver app runs on a
 | Android 14+ blocks exact alarms by default | Request permission during setup; FCM push from the server as a backup |
 | No Malayalam TTS voice on the phone | Captions + pre-generated MP3s |
 | Too little real data for FL | Simulator with 30 synthetic families; we say clearly that it's a simulation + one live round |
+| **Self-report may be wrong** (memory decline) | Records are labelled with how strong the evidence is: photo-verified > nurse > self-report. Pill-box photo check for high-risk slots. The answer says *how* we know ("you told me at 8:15") |
+| **"Already exists" (Medisafe, 99DOTS)** | §2.1 comparison table; lead the pitch with what only Orma does: conversational GenAI on keypad phones + grounded cited answers |
+| **GenAI hallucination** in answers, prescriptions or summaries | Citation check on every sentence; no medicine names that aren't in the fact pack; caregiver confirms every prescription line; template fallback |
+| **Handwritten prescription misread** | Confidence per line + box drawn on the photo + mandatory confirmation; low-confidence lines are never added |
+| **Call turns too slow** | "Shari…" ("Okay…") filler, pre-generated common replies, Flash model, 4 s budget → fall back to key presses |
+| **Surveillance / dignity** | The elder owns the data, can toggle sharing by voice, supporter wording, guardian only with a recorded capacity note |
+| **Scope is very large (team chose to keep everything)** | Strict P0 → P1 → P2 order; feature freeze at C3; fallback table in worksplit §7; backup video |
 | Caregivers get too many alerts | Duty roster, alerts only for problems, risk alerts optional |
 | A wrong "taken" log | The caregiver can correct it with a reason; the evidence trail shows who logged it and how |
 
