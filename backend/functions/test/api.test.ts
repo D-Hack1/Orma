@@ -1,0 +1,43 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const mocks = vi.hoisted(() => ({ access: vi.fn(), log: vi.fn(), status: vi.fn(), explain: vi.fn() }));
+vi.mock('../src/platform/firebase', () => ({ db: {} }));
+vi.mock('../src/platform/auth', async importOriginal => ({
+  ...await importOriginal<object>(), resolveMemberAccess: mocks.access,
+}));
+vi.mock('../src/doses', async importOriginal => ({ ...await importOriginal<object>(), logDose: mocks.log }));
+vi.mock('../src/replies', async importOriginal => ({ ...await importOriginal<object>(), askStatus: mocks.status }));
+vi.mock('../src/explain', async importOriginal => ({ ...await importOriginal<object>(), explain: mocks.explain }));
+import { askStatus, logDose } from '../src/api';
+
+const key = { familyId: 'demo-family', memberId: 'achan', date: '2026-11-07', slot: 'morning' };
+const request = (data: unknown, uid = 'achan-uid') => ({ data, auth: { uid, token: {} }, rawRequest: {} }) as any;
+describe('callable safety boundary', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mocks.access.mockResolvedValue({ uid: 'achan-uid', memberId: 'achan', isOwner: true });
+    mocks.status.mockResolvedValue({ status: 'unknown', textEn: 'Please wait.', textMl: 'കാത്തിരിക്കൂ.' });
+  });
+  it('requires authentication before reading any record', async () => {
+    await expect(askStatus.run({ data: key } as any)).rejects.toMatchObject({ code: 'unauthenticated' });
+    expect(mocks.access).not.toHaveBeenCalled();
+  });
+  it('rejects malformed calendar dates', async () => {
+    await expect(askStatus.run(request({ ...key, date: '2026-02-30' }))).rejects.toMatchObject({ code: 'invalid-argument' });
+    expect(mocks.status).not.toHaveBeenCalled();
+  });
+  it('does not trust a client supplied role', async () => {
+    await askStatus.run(request({ ...key, role: 'guardian' }));
+    expect(mocks.status).toHaveBeenCalledWith({}, expect.objectContaining(key), expect.objectContaining({ role: 'member', uid: 'achan-uid' }));
+  });
+  it('returns a privacy-filtered deterministic reply after logging', async () => {
+    mocks.log.mockResolvedValue({ result: 'logged', status: 'confirmed' });
+    const result = await logDose.run(request({ ...key, countTaken: 1, source: 'tap' }));
+    expect(result).toMatchObject({ result: 'logged', reply: { textEn: 'Please wait.' } });
+    expect(mocks.access).toHaveBeenCalledWith('achan-uid', 'demo-family', 'achan');
+  });
+  it('does not leak internal errors', async () => {
+    mocks.status.mockRejectedValue(new Error('private document path'));
+    await expect(askStatus.run(request(key))).rejects.toMatchObject({ code: 'failed-precondition' });
+  });
+});
