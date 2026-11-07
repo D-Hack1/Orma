@@ -43,13 +43,41 @@ export type Dose = {
   source: string; by: string; at: string; attempts: number; evidence: Evidence[];
 };
 export type Member = {
-  ownerUid?: string; uid?: string; userId?: string; nurseIds?: string[]; deviceIds?: string[];
+  ownerUid?: string; uid?: string; userId?: string; timezone?: string; nurseIds?: string[]; deviceIds?: string[];
   sharing?: { guardianId?: string; capacityNote?: string; counts?: boolean; nurseNotes?: boolean;
     risk?: boolean; perSupporter?: Record<string, { counts?: boolean; nurseNotes?: boolean; risk?: boolean }> };
 };
 
 export function memberPath(key: DoseKey): string {
   return `families/${key.familyId}/members/${key.memberId}`;
+}
+
+export function assertCurrentAccess(member: Member, key: DoseKey, actor: Actor, access?: { active?: boolean; memberIds?: string[]; roles?: string[] }): void {
+  assertActor(member, key, actor);
+  if (actor.role === 'device') return;
+  if (access?.active !== true || !access.memberIds?.includes(key.memberId) ||
+    (actor.role === 'supporter' && !access.roles?.some(role => role === 'supporter' || role === 'leadSupporter')) ||
+    (actor.role === 'nurse' && !access.roles?.includes('nurse'))) {
+    throw new Error('Permission denied: membership or role changed');
+  }
+}
+
+export function synchronizeStock(schedules: Record<string, Schedule>, slot: string, updated: Medicine[], consumedIds: string[]) {
+  const current = schedules[slot];
+  const stocks = new Map(consumedIds.map(id => [id, current.medicines.find(m => m.id === id)!.stock]));
+  const next = new Map(updated.filter(m => consumedIds.includes(m.id)).map(m => [m.id, m.stock]));
+  const changes: Record<string, Schedule> = {};
+  for (const [scheduleId, schedule] of Object.entries(schedules)) {
+    if (!Array.isArray(schedule.medicines)) throw new Error('Reconcile inconsistent medicine stock across schedules');
+    const matching = schedule.medicines.filter(m => stocks.has(m.id));
+    if (!matching.length) continue;
+    if (new Set(matching.map(m => m.id)).size !== matching.length || matching.some(m => m.stock !== stocks.get(m.id))) {
+      throw new Error('Reconcile inconsistent medicine stock across schedules');
+    }
+    changes[scheduleId] = { ...schedule, medicines: schedule.medicines.map(m =>
+      next.has(m.id) && next.get(m.id) !== undefined ? { ...m, stock: next.get(m.id)! } : m) };
+  }
+  return changes;
 }
 
 // Family membership and supporter/nurse assignment are checked by the authenticated wrapper.

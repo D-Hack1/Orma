@@ -1,7 +1,8 @@
 import { z } from 'zod';
-import { hasFullAccess, type Actor, type Dose, type DoseKey, type DoseStatus, type Evidence, type Member } from '../doses/core';
+import { hasFullAccess, type Actor, type Dose, type DoseKey, type DoseStatus, type Evidence, type Member, type Schedule } from '../doses/core';
 
-export type Fact = { id: string; kind: 'status' | 'count' | 'evidence'; textEn: string; textMl: string; evidence?: Evidence };
+export type Fact = { id: string; kind: 'status' | 'count' | 'evidence'; textEn: string; textMl: string; evidence?: Evidence;
+  scheduled?: { date: string; slot: string; time: string; timezone: string } };
 export type FactPack = { status: DoseStatus; facts: Fact[] };
 export type Sentence = { text: string; cites: string[] };
 export type Generator = (pack: FactPack, question?: string) => Promise<unknown>;
@@ -14,12 +15,33 @@ const statusWords: Record<DoseStatus, [string, string]> = {
   unknown: ["I am not sure whether this dose was taken. Please wait before taking another and contact your supporter.", 'ഈ ഡോസ് കഴിച്ചോ എന്ന് ഉറപ്പില്ല. വീണ്ടും കഴിക്കുന്നതിന് മുമ്പ് കാത്തിരിക്കൂ, സഹായിയെ ബന്ധപ്പെടൂ.'],
 };
 
-export function buildFactPack(key: DoseKey, member: Member, viewer: Actor, dose?: Dose): FactPack {
-  const status = dose?.status && statusWords[dose.status] ? dose.status : 'unknown';
+export type ScheduleContext = { schedule?: Schedule; timezone?: string; now?: Date };
+
+export function isBeforeScheduledTime(key: DoseKey, { schedule, timezone = 'Asia/Kolkata', now = new Date() }: ScheduleContext): boolean {
+  if (!schedule?.medicines?.length || !schedule.time || !/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.time)) return false;
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(now);
+    const value = (type: Intl.DateTimeFormatPartTypes) => parts.find(part => part.type === type)!.value;
+    const localNow = `${value('year')}-${value('month')}-${value('day')}T${value('hour')}:${value('minute')}`;
+    return `${key.date}T${schedule.time}` > localNow;
+  } catch { return false; }
+}
+
+export function buildFactPack(key: DoseKey, member: Member, viewer: Actor, dose?: Dose, context: ScheduleContext = {}): FactPack {
+  const pending = (!dose || dose.status === 'pending') && isBeforeScheduledTime(key, context);
+  const status = pending ? 'pending' : dose?.status && dose.status !== 'pending' && statusWords[dose.status] ? dose.status : 'unknown';
   const [textEn, textMl] = statusWords[status];
   const id = `dose:${key.date}_${key.slot}`;
   // Absence is a lookup result, not an invented dose record.
   const facts: Fact[] = [{ id: dose ? id : `lookup:${key.date}_${key.slot}`, kind: 'status', textEn, textMl }];
+  if (pending) {
+    const timezone = context.timezone ?? 'Asia/Kolkata';
+    const time = context.schedule!.time!;
+    facts[0] = { id: `schedule:${key.slot}`, kind: 'status', scheduled: { date: key.date, slot: key.slot, time, timezone },
+      textEn: `This dose is scheduled for ${key.date} at ${time} (${timezone}) and is not due yet. No taken record is available.`,
+      textMl: `ഈ ഡോസ് ${key.date} ${time} (${timezone}) സമയത്താണ്. സമയമായിട്ടില്ല. കഴിച്ചതായി രേഖയില്ല.` };
+  }
   const full = hasFullAccess(member, key, viewer);
   const overrides = member.sharing?.perSupporter?.[viewer.uid];
   const counts = full || (overrides?.counts ?? member.sharing?.counts ?? false);

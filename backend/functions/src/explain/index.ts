@@ -1,6 +1,6 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import { z } from 'zod';
-import { assertActor, doseKeySchema, hasFullAccess, memberPath, type Actor, type Member } from '../doses/core';
+import { assertActor, doseKeySchema, hasFullAccess, memberPath, type Actor, type Member, type Schedule } from '../doses/core';
 import { readDose } from '../doses/storage';
 import { answerFromFacts, buildFactPack } from '../replies/core';
 
@@ -35,7 +35,11 @@ export async function explain(db: Firestore, raw: z.input<typeof explainSchema>,
     return { reasons: [{ text: reason, cites: [`alert:${input.alertId}`] }], textEn: reason, textMl: 'ഡോസ് സുരക്ഷാ നിയമം കാരണം അറിയിപ്പ് നൽകി.' };
   }
   const dose = readDose((await db.doc(`${base}/doses/${input.date}_${input.slot}`).get()).data());
-  const pack = buildFactPack(input, member, viewer, dose);
+  const [scheduleSnap, familySnap] = await Promise.all([
+    db.doc(`${base}/schedule/${input.slot}`).get(), db.doc(`families/${input.familyId}`).get(),
+  ]);
+  const pack = buildFactPack(input, member, viewer, dose, { schedule: scheduleSnap.data() as Schedule | undefined,
+    timezone: member.timezone ?? familySnap.data()?.timezone ?? 'Asia/Kolkata' });
   const answer = await answerFromFacts(pack);
   return { ...answer, reasons: pack.facts.map(fact => ({ text: fact.textEn, cites: fact.id.startsWith('lookup:') ? [] : [fact.id] })), sources: pack.facts };
 }

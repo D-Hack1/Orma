@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Firestore } from 'firebase-admin/firestore';
-import { assertActor, decideDose, doseProjection, logDose, logDoseSchema, type Actor, type LogDoseInput, type Schedule } from '../src/doses';
+import { assertActor, assertCurrentAccess, decideDose, doseProjection, logDose, logDoseSchema, synchronizeStock, type Actor, type LogDoseInput, type Schedule } from '../src/doses';
 
 const actor: Actor = { uid: 'amma', memberId: 'amma', role: 'member' };
 const input: LogDoseInput = { familyId: 'home', memberId: 'amma', date: '2026-11-07', slot: 'morning', countTaken: 3, source: 'tap' };
@@ -77,6 +77,7 @@ it.each([actor, { uid: 'anu', memberId: 'amma', role: 'guardian' } as Actor])('t
     get: async (path: string) => {
       expect(writing).toBe(false);
       if (path.endsWith('/access')) return { docs: [{ id: 'amma', data: () => ({ active: true, memberIds: ['amma'], roles: ['member'] }) }, { id: 'anu', data: () => ({ active: true, memberIds: ['amma'], roles: ['supporter'] }) }] };
+      if (path.endsWith('/schedule')) return { docs: [...records.entries()].filter(([id]) => id.startsWith(`${path}/`)).map(([id, data]) => ({ id: id.slice(path.length + 1), data: () => data })) };
       return { exists: records.has(path), data: () => records.get(path) };
     },
     set: (path: string, value: unknown) => { writing = true; records.set(path, value); },
@@ -92,6 +93,86 @@ it.each([actor, { uid: 'anu', memberId: 'amma', role: 'guardian' } as Actor])('t
   expect((records.get('families/home/members/amma/schedule/morning') as Schedule).medicines[0].stock).toBe(9);
   expect(records.has('alerts/double_home_amma_2026-11-07_morning')).toBe(true);
   expect(records.get('families/home/views/anu/members/amma/doses/2026-11-07_morning')).toEqual({ date: input.date, slot: input.slot, status });
+});
+
+it('synchronizes a shared medicine stock across slots without copying dose quantities', () => {
+  const schedules = { morning: schedule, night: { medicines: [{ id: 'bp', name: 'BP', count: 2, stock: 10 }] } };
+  const decision = decideDose(schedule, input, actor, at);
+  const changed = synchronizeStock(schedules, 'morning', decision.medicines, decision.dose.medicinesTaken);
+  expect(changed.night.medicines[0]).toEqual({ id: 'bp', name: 'BP', count: 2, stock: 9 });
+  expect(changed.morning.medicines.map(m => m.stock)).toEqual([9, 18]);
+  expect(schedules.night.medicines[0].stock).toBe(10);
+});
+
+it.each([9, undefined])('rejects inconsistent shared stock %s without guessing', stock => {
+  const decision = decideDose(schedule, input, actor, at);
+  expect(() => synchronizeStock({ morning: schedule, night: { medicines: [{ id: 'bp', name: 'BP', count: 1, stock }] } },
+    'morning', decision.medicines, decision.dose.medicinesTaken)).toThrow('Reconcile');
+});
+
+it.each(['supporter', 'nurse'] as const)('rejects a revoked %s role despite active member assignment', role => {
+  const member = { nurseIds: ['anu'] };
+  const key = logDoseSchema.parse(input);
+  const caller: Actor = { uid: 'anu', role };
+  expect(() => assertCurrentAccess(member, key, caller, { active: true, memberIds: ['amma'], roles: ['member'] })).toThrow('role changed');
+  expect(() => assertCurrentAccess(member, key, caller, { active: true, memberIds: ['amma'], roles: [role] })).not.toThrow();
+});
+
+it('concurrent different-slot transactions retry shared stock reads and never double-count physical stock', async () => {
+  const base = 'families/home/members/amma';
+  const records = new Map<string, any>([
+    [base, { ownerUid: 'amma' }],
+    ['families/home/access/amma', { active: true, memberIds: ['amma'], roles: ['member'] }],
+    [`${base}/schedule/morning`, { medicines: [{ id: 'bp', name: 'BP', count: 1, stock: 30 }] }],
+    [`${base}/schedule/night`, { medicines: [{ id: 'bp', name: 'BP', count: 2, stock: 30 }] }],
+  ]);
+  let version = 0;
+  let retries = 0;
+  const db = {
+    doc: (path: string) => path, collection: (path: string) => path,
+    runTransaction: async (fn: (tx: unknown) => Promise<unknown>) => {
+      for (;;) {
+        const readVersion = version;
+        const snapshot = new Map(records);
+        const writes = new Map<string, any>();
+        const tx = {
+          get: async (path: string) => {
+            expect(writes.size).toBe(0);
+            if (path.endsWith('/schedule') || path.endsWith('/access')) return {
+              docs: [...snapshot.entries()].filter(([key]) => key.startsWith(`${path}/`)).map(([key, value]) => ({ id: key.slice(path.length + 1), data: () => value })),
+            };
+            return { exists: snapshot.has(path), data: () => snapshot.get(path) };
+          },
+          set: (path: string, value: unknown) => writes.set(path, value),
+          update: (path: string, value: object) => writes.set(path, { ...snapshot.get(path), ...value }),
+        };
+        const result = await fn(tx);
+        if (readVersion !== version) { retries++; continue; }
+        for (const [path, value] of writes) records.set(path, value);
+        version++;
+        return result;
+      }
+    },
+  } as unknown as Firestore;
+  const results = await Promise.all([
+    logDose(db, { ...input, countTaken: 1 }, actor),
+    logDose(db, { ...input, slot: 'night', countTaken: 2 }, actor),
+  ]);
+  expect(results.map(result => result.result)).toEqual(['logged', 'logged']);
+  expect(retries).toBeGreaterThan(0);
+  expect(records.get(`${base}/schedule/morning`).medicines[0].stock).toBe(27);
+  expect(records.get(`${base}/schedule/night`).medicines[0].stock).toBe(27);
+  expect(records.get(`${base}/doses/2026-11-07_morning`).countTaken).toBe(1);
+  expect(records.get(`${base}/doses/2026-11-07_night`).countTaken).toBe(2);
+  expect((await logDose(db, { ...input, countTaken: 1 }, actor)).result).toBe('duplicate_blocked');
+  expect(records.get(`${base}/schedule/night`).medicines[0].stock).toBe(27);
+  records.set(`${base}/schedule/night`, { medicines: [{ id: 'bp', name: 'BP', count: 2, stock: 26 }] });
+  await expect(logDose(db, { ...input, date: '2026-11-08', countTaken: 1 }, actor)).rejects.toThrow('Reconcile');
+  expect(records.get(`${base}/schedule/morning`).medicines[0].stock).toBe(27);
+  expect(records.has(`${base}/doses/2026-11-08_morning`)).toBe(false);
+  records.set('families/home/access/anu', { active: true, memberIds: ['amma'], roles: ['member'] });
+  await expect(logDose(db, { ...input, date: '2026-11-08', countTaken: 1 }, { uid: 'anu', role: 'supporter' })).rejects.toThrow('role changed');
+  expect(records.has(`${base}/doses/2026-11-08_morning`)).toBe(false);
 });
 
 it('count projections obey current per-viewer consent without private evidence', () => {

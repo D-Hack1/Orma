@@ -1,6 +1,6 @@
 import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { z } from 'zod';
-import { assertActor, doseKeySchema, memberPath, type Actor, type Member } from '../doses/core';
+import { assertCurrentAccess, doseKeySchema, doseProjection, memberPath, type Actor, type Member, type Schedule } from '../doses/core';
 import { readDose } from '../doses/storage';
 import { answerFromFacts, buildFactPack, type Generator } from './core';
 
@@ -12,20 +12,22 @@ export async function askStatus(db: Firestore, raw: z.input<typeof askStatusSche
   const input = askStatusSchema.parse(raw);
   const base = memberPath(input);
   const pack = await db.runTransaction(async tx => {
-    const [memberSnap, sharingSnap, doseSnap, accessSnap] = await Promise.all([
+    const [memberSnap, sharingSnap, doseSnap, accessSnap, scheduleSnap, familySnap] = await Promise.all([
       tx.get(db.doc(base)), tx.get(db.doc(`${base}/settings/sharing`)),
       tx.get(db.doc(`${base}/doses/${input.date}_${input.slot}`)),
       tx.get(db.doc(`families/${input.familyId}/access/${viewer.uid}`)),
+      tx.get(db.doc(`${base}/schedule/${input.slot}`)), tx.get(db.doc(`families/${input.familyId}`)),
     ]);
     if (!memberSnap.exists) throw new Error('Member not found');
     const member = { ...memberSnap.data(), sharing: sharingSnap.data() } as Member;
-    assertActor(member, input, viewer);
-    const access = accessSnap.data();
-    if (viewer.role !== 'device' && (!access?.active || !access.memberIds?.includes(input.memberId))) throw new Error('Permission denied: membership changed');
-    const facts = buildFactPack(input, member, viewer, readDose(doseSnap.data()));
+    assertCurrentAccess(member, input, viewer, accessSnap.data());
+    const dose = readDose(doseSnap.data());
+    const facts = buildFactPack(input, member, viewer, dose, { schedule: scheduleSnap.data() as Schedule | undefined,
+      timezone: member.timezone ?? familySnap.data()?.timezone ?? 'Asia/Kolkata' });
     const viewBase = `families/${input.familyId}/views/${viewer.uid}/members/${input.memberId}`;
     tx.set(db.doc(viewBase), { name: memberSnap.data()!.name ?? '', mode: memberSnap.data()!.mode ?? 'assisted' });
-    tx.set(db.doc(`${viewBase}/doses/${input.date}_${input.slot}`), { date: input.date, slot: input.slot, status: facts.status });
+    tx.set(db.doc(`${viewBase}/doses/${input.date}_${input.slot}`), dose ?
+      { ...doseProjection(input, dose, member, viewer.uid), status: facts.status } : { date: input.date, slot: input.slot, status: facts.status });
     if (facts.status === 'unknown') tx.set(db.doc(`${viewBase}/alerts/unknown_${input.date}_${input.slot}`), {
       type: 'unknown', rule: 'No reliable taken record is available. Check before taking another dose.',
       date: input.date, slot: input.slot, at: Timestamp.now(),

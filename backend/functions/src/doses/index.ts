@@ -1,5 +1,5 @@
 import { Timestamp, type Firestore } from 'firebase-admin/firestore';
-import { assertActor, decideDose, doseProjection, logDoseSchema, memberPath, type Actor, type LogDoseInput, type Member, type Schedule } from './core';
+import { assertCurrentAccess, decideDose, doseProjection, logDoseSchema, memberPath, synchronizeStock, type Actor, type LogDoseInput, type Member, type Schedule } from './core';
 import { readDose, storedDose } from './storage';
 import { answerFromFacts, buildFactPack } from '../replies/core';
 
@@ -12,14 +12,16 @@ export async function logDose(db: Firestore, raw: LogDoseInput, actor: Actor) {
   const key = `${input.date}_${input.slot}`;
   const at = new Date().toISOString();
   return db.runTransaction(async tx => {
-    const [memberSnap, sharingSnap, scheduleSnap, doseSnap] = await Promise.all([
-      tx.get(db.doc(base)), tx.get(db.doc(`${base}/settings/sharing`)), tx.get(db.doc(`${base}/schedule/${input.slot}`)),
+    const [memberSnap, sharingSnap, schedulesSnap, doseSnap] = await Promise.all([
+      tx.get(db.doc(base)), tx.get(db.doc(`${base}/settings/sharing`)), tx.get(db.collection(`${base}/schedule`)),
       tx.get(db.doc(`${base}/doses/${key}`)),
     ]);
     const accessSnap = await tx.get(db.collection(`families/${input.familyId}/access`));
-    if (!memberSnap.exists || !scheduleSnap.exists) throw new Error('Member or confirmed schedule not found');
+    const schedules = Object.fromEntries(schedulesSnap.docs.map(doc => [doc.id, doc.data() as Schedule]));
+    const schedule = schedules[input.slot];
+    if (!memberSnap.exists || !schedule) throw new Error('Member or confirmed schedule not found');
     const member = { ...memberSnap.data(), sharing: sharingSnap.data() } as Member;
-    assertActor(member, input, actor);
+    assertCurrentAccess(member, input, actor, accessSnap.docs.find(doc => doc.id === actor.uid)?.data());
     const viewers = accessSnap.docs.filter(doc => {
       const access = doc.data();
       return access.active === true && access.memberIds?.includes(input.memberId) &&
@@ -29,7 +31,8 @@ export async function logDose(db: Firestore, raw: LogDoseInput, actor: Actor) {
     });
     if (actor.role !== 'device' && !viewers.some(doc => doc.id === actor.uid)) throw new Error('Permission denied: membership changed');
     if (viewers.length > 150) throw new Error('Too many viewers for an atomic dose update');
-    const decision = decideDose(scheduleSnap.data() as Schedule, input, actor, at, readDose(doseSnap.data()));
+    const decision = decideDose(schedule, input, actor, at, readDose(doseSnap.data()));
+    const stockChanges = decision.result === 'duplicate_blocked' ? {} : synchronizeStock(schedules, input.slot, decision.medicines, decision.dose.medicinesTaken);
     if (decision.result === 'duplicate_blocked') {
       tx.update(db.doc(`${base}/doses/${key}`), { evidence: storedDose(decision.dose).evidence });
       tx.set(db.doc(`alerts/double_${input.familyId}_${input.memberId}_${key}`), {
@@ -38,7 +41,9 @@ export async function logDose(db: Firestore, raw: LogDoseInput, actor: Actor) {
       });
     } else {
       tx.set(db.doc(`${base}/doses/${key}`), { ...storedDose(decision.dose), date: input.date, slot: input.slot });
-      tx.update(db.doc(`${base}/schedule/${input.slot}`), { medicines: decision.medicines });
+      for (const [slot, changed] of Object.entries(stockChanges)) {
+        tx.update(db.doc(`${base}/schedule/${slot}`), { medicines: changed.medicines });
+      }
       if (decision.result === 'partial') tx.set(db.doc(`alerts/partial_${input.familyId}_${input.memberId}_${key}`), {
         familyId: input.familyId, memberId: input.memberId, type: 'partial',
         rule: 'The recorded count is below the confirmed schedule count.', at: Timestamp.fromDate(new Date(at)),
