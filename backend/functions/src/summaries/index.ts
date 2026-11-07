@@ -48,7 +48,7 @@ export async function createDailyDigest(context: MemberAccess, date: string, lan
   return { digestId, ...result, ...(audioUrl ? { audioUrl } : {}) };
 }
 
-export const dailyDigest = onCall({ enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== 'true' }, async request => {
+export const dailyDigest = onCall({ region: 'asia-south1', secrets: ['TWILIO_AUTH_TOKEN'], enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== 'true' }, async request => {
   const uid = requireAuth(request);
   try {
     const input = digestInputSchema.parse(request.data);
@@ -86,4 +86,4 @@ export async function runDailyDigestSweep(now = new Date()) {
 }
 
 // UTC minute sweep supports member-local 20:00, including half/quarter-hour zones and DST.
-export const dailyDigestScheduled = onSchedule({ schedule: '* * * * *', timeZone: 'UTC' }, async event => { await runDailyDigestSweep(new Date(event.scheduleTime)); });
+export const dailyDigestScheduled = onSchedule({ region: 'asia-south1', secrets: ['TWILIO_AUTH_TOKEN'], schedule: '* * * * *', timeZone: 'UTC' }, async event => { await runDailyDigestSweep(new Date(event.scheduleTime)); });

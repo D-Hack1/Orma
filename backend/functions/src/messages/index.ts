@@ -174,5 +174,5 @@ export async function sendCallMessageService(callId: string, text: string, deps:
   return saveMessage(member.ownerUid, { familyId, memberId, to: 'onDuty', text, retainAudio: false }, deps, callId);
 }
 
-export const sendMessage = onCall({ region: 'asia-south1', enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== 'true', timeoutSeconds: 30 },
+export const sendMessage = onCall({ region: 'asia-south1', secrets: ['TWILIO_AUTH_TOKEN'], enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== 'true', timeoutSeconds: 30 },
   request => sendMessageService(requireAuth(request), request.data));

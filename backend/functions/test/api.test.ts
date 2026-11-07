@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ access: vi.fn(), log: vi.fn(), status: vi.fn(), explain: vi.fn() }));
+const mocks = vi.hoisted(() => ({ access: vi.fn(), log: vi.fn(), status: vi.fn(), explain: vi.fn(), generator: vi.fn(), persist: vi.fn() }));
+vi.mock('../src/answers', () => ({ geminiAnswerGenerator: mocks.generator, persistAnswer: mocks.persist }));
 vi.mock('../src/platform/firebase', () => ({ db: {} }));
 vi.mock('../src/platform/auth', async importOriginal => ({
   ...await importOriginal<object>(), resolveMemberAccess: mocks.access,
@@ -17,6 +18,7 @@ describe('callable safety boundary', () => {
     vi.resetAllMocks();
     mocks.access.mockResolvedValue({ uid: 'achan-uid', memberId: 'achan', isOwner: true });
     mocks.status.mockResolvedValue({ status: 'unknown', textEn: 'Please wait.', textMl: 'കാത്തിരിക്കൂ.' });
+    mocks.persist.mockResolvedValue('answer-1');
   });
   it('requires authentication before reading any record', async () => {
     await expect(askStatus.run({ data: key } as any)).rejects.toMatchObject({ code: 'unauthenticated' });
@@ -28,7 +30,13 @@ describe('callable safety boundary', () => {
   });
   it('does not trust a client supplied role', async () => {
     await askStatus.run(request({ ...key, role: 'guardian' }));
-    expect(mocks.status).toHaveBeenCalledWith({}, expect.objectContaining(key), expect.objectContaining({ role: 'member', uid: 'achan-uid' }));
+    expect(mocks.status).toHaveBeenCalledWith({}, expect.objectContaining(key), expect.objectContaining({ role: 'member', uid: 'achan-uid' }), mocks.generator);
+  });
+  it('asks for date and slot instead of guessing from an unresolved question', async () => {
+    const result = await askStatus.run(request({ familyId: 'demo-family', memberId: 'achan', question: 'Did I take it?' }));
+    expect(result).toMatchObject({ needsClarification: true, sentences: [] });
+    expect(mocks.access).toHaveBeenCalledWith('achan-uid', 'demo-family', 'achan');
+    expect(mocks.status).not.toHaveBeenCalled();
   });
   it('returns a privacy-filtered deterministic reply after logging', async () => {
     mocks.log.mockResolvedValue({ result: 'logged', status: 'confirmed', reply: { textEn: 'Recorded safely.' } });
@@ -40,5 +48,10 @@ describe('callable safety boundary', () => {
   it('does not leak internal errors', async () => {
     mocks.status.mockRejectedValue(new Error('private document path'));
     await expect(askStatus.run(request(key))).rejects.toMatchObject({ code: 'failed-precondition' });
+  });
+  it('does not return an answer when sharing changes before persistence', async () => {
+    const { HttpsError } = await import('firebase-functions/v2/https');
+    mocks.persist.mockRejectedValue(new HttpsError('permission-denied', 'Sharing changed.'));
+    await expect(askStatus.run(request(key))).rejects.toMatchObject({ code: 'permission-denied' });
   });
 });

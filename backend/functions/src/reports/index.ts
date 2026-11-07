@@ -42,7 +42,7 @@ export async function createDoctorReport(context: MemberAccess, from: string, to
   return { reportId, pdfUrl, sections, sources: result.sources, textMl: 'ഡോക്ടറെ കാണാനുള്ള സംഗ്രഹം തയ്യാറായി.', textEn: 'Your doctor-visit summary is ready.' };
 }
 
-export const doctorReport = onCall({ enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== 'true' }, async request => {
+export const doctorReport = onCall({ region: 'asia-south1', secrets: ['TWILIO_AUTH_TOKEN'], enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== 'true' }, async request => {
   const uid = requireAuth(request);
   try {
     const input = doctorReportInputSchema.parse(request.data);
