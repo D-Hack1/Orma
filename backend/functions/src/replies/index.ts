@@ -26,6 +26,10 @@ export async function askStatus(db: Firestore, raw: z.input<typeof askStatusSche
     const viewBase = `families/${input.familyId}/views/${viewer.uid}/members/${input.memberId}`;
     tx.set(db.doc(viewBase), { name: memberSnap.data()!.name ?? '', mode: memberSnap.data()!.mode ?? 'assisted' });
     tx.set(db.doc(`${viewBase}/doses/${input.date}_${input.slot}`), { date: input.date, slot: input.slot, status: facts.status });
+    if (facts.status === 'unknown') tx.set(db.doc(`${viewBase}/alerts/unknown_${input.date}_${input.slot}`), {
+      type: 'unknown', rule: 'No reliable taken record is available. Check before taking another dose.',
+      date: input.date, slot: input.slot, at: Timestamp.now(),
+    });
     return facts;
   });
   const answer = await answerFromFacts(pack, generator, input.question);
