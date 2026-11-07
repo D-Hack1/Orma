@@ -6,5 +6,6 @@ import android.os.Vibrator
 
 fun feedback(context: Context, blocked: Boolean = false) {
     val vibrator = context.getSystemService(Vibrator::class.java)
-    vibrator?.vibrate(VibrationEffect.createOneShot(if (blocked) 450 else 70, VibrationEffect.DEFAULT_AMPLITUDE))
+    vibrator?.vibrate(if (blocked) VibrationEffect.createOneShot(450, VibrationEffect.DEFAULT_AMPLITUDE)
+        else VibrationEffect.createWaveform(longArrayOf(0, 70, 100, 70), -1))
 }

@@ -19,9 +19,9 @@ class StubOrmaApi(
     private val mutex = Mutex()
 
     override suspend fun understand(transcript: String): Understanding {
-        // Exact, reviewed demo phrases only: an unrecognised sentence never logs a dose.
+        // Prefer fixture examples; otherwise require explicit fields in the local keyword fallback.
         val match = fixture.phrases.firstOrNull { it.transcript.trim().equals(transcript.trim(), true) }
-            ?: return Understanding(transcript = transcript)
+            ?: return offlineUnderstanding(transcript)
         val evidence = verifiedEvidence(transcript, match.evidence)
         val fields = evidence.map { it.field }.toSet()
         val complete = match.intent != "log" || ("members" in fields && "slot" in fields && "count" in fields)
@@ -30,6 +30,7 @@ class StubOrmaApi(
     }
 
     override suspend fun logDose(request: LogRequest): LogResult = mutex.withLock {
+        check(!state.value.storageError) { "Saved records could not be read. Logging is paused; please contact your supporter." }
         val member = members.firstOrNull { it.id == request.memberId } ?: error("Member not found")
         require(request.countTaken in 1..member.expected) { "Choose a count from the confirmed schedule." }
         val existing = state.value.doses.firstOrNull {

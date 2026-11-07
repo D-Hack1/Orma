@@ -102,4 +102,11 @@ class StubOrmaApiTest {
         assertEquals(2, api.state.value.doses.size)
         assertEquals(2, api.state.value.doses.map { it.id }.distinct().size)
     }
+
+    @Test fun `unreadable saved state disables logging rather than discarding guard history`() = runTest {
+        val api = api(LocalState(storageError = true))
+        try { api.logDose(request()); fail("Logging must pause on unreadable state") } catch (_: IllegalStateException) { }
+        assertTrue(api.state.value.doses.isEmpty())
+        assertTrue(api.state.value.storageError)
+    }
 }

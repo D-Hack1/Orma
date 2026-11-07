@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.SpanStyle
@@ -37,6 +38,7 @@ import `in`.orma.assistant.assistantSetupIntent
 import `in`.orma.audio.*
 import `in`.orma.core.theme.*
 import `in`.orma.data.*
+import `in`.orma.reminders.NotificationControls
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -107,6 +109,7 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
         NavHost(nav, startDestination = "home", modifier = Modifier.padding(padding)) {
             composable("home") {
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                    if (state.storageError) Notice("Logging is paused", "Saved records could not be opened. Please contact your supporter before taking another dose.")
                     when (role) {
                         "Assisted" -> {
                             PageHeading("A little help,\nevery day.", "Your medicine companion · Home phone")
@@ -121,6 +124,7 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
                             PageHeading("Your day,\nat your pace.", "Farhan · Silent reminders")
                             Notice("Quiet by default", "Captions and taps work with sound off. Your record is not linked to a family.")
                             MemberCard(member, state, true, { logMember = member; logSlot = it }, { model.explain(member.id, it); explanation = true })
+                            NotificationControls()
                         }
                         else -> {
                             PageHeading(if (role == "Nurse") "Care for today." else "A little closer,\neven from afar.",
@@ -160,6 +164,7 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
                     PageHeading("Make it yours.", "Accessibility & member sharing")
                     LargeButton("Set Orma as digital assistant", Modifier.fillMaxWidth()) { context.startActivity(assistantSetupIntent(context)) }
+                    NotificationControls(assistantOnly = true)
                     Notice("Ways to reach Orma", "Choose Orma in Android’s digital assistant settings. Use the Speak tab or launcher if your phone’s power button does not open the assistant.")
                     if (role == "Assisted") {
                         var memberId by rememberSaveable { mutableStateOf("amma") }
@@ -332,7 +337,7 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
             if (reply.textMl.isNotBlank()) Text(reply.textMl, style = MaterialTheme.typography.headlineSmall)
         }
         conversation.understanding?.takeIf { !it.needsClarification && it.intent == "log" }?.let { heard ->
-            LargeButton("Confirm ${heard.countTaken} tablets · ${heard.memberIds.joinToString()} · ${heard.slot?.label}", Modifier.fillMaxWidth(), !conversation.busy) {
+            LargeButton("Confirm ${heard.countTaken} tablets today · ${heard.memberIds.joinToString()} · ${heard.slot?.label}", Modifier.fillMaxWidth(), !conversation.busy) {
                 model.log(heard.memberIds, requireNotNull(heard.slot), requireNotNull(heard.countTaken), "voice", transcript = heard.transcript, evidence = heard.evidence)
             }
         }
@@ -360,8 +365,8 @@ fun OrmaApp(model: OrmaViewModel, openSpeak: Boolean, onOpened: () -> Unit) {
         Text("Try a demo phrase", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(transcript, { transcript = it }, label = { Text("What you said") }, modifier = Modifier.fillMaxWidth())
         LargeButton("Check phrase", Modifier.fillMaxWidth(), transcript.isNotBlank() && !conversation.busy) { model.submit(transcript) }
-        listOf("Njangal randuperum raavile 3 gulika kazhichu", "Amma uchakku 2 gulika kazhichu", "Kazhichu", "Amma raathri gulika kazhicho?").forEach { phrase ->
-            TextButton({ transcript = phrase; model.submit(phrase) }, Modifier.fillMaxWidth().heightIn(min = 64.dp)) { Text(phrase) }
+        listOf("Njangal randuperum raavile 3 gulika kazhichu", "Amma uchakku 2 gulika kazhichu", "Kazhichu", "Amma raathri gulika kazhicho?").forEachIndexed { index, phrase ->
+            TextButton({ transcript = phrase; model.submit(phrase) }, Modifier.fillMaxWidth().heightIn(min = 64.dp).testTag("demo-phrase-$index")) { Text(phrase) }
         }
     }
     sources?.let { sentence -> AlertDialog(onDismissRequest = { sources = null }, title = { Text("Why this answer?") },

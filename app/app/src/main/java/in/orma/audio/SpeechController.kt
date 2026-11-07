@@ -5,6 +5,8 @@ import android.content.Intent
 import android.content.ComponentName
 import android.speech.RecognitionService
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -14,9 +16,13 @@ import java.util.Locale
 class SpeechController(private val context: Context) {
     private var recognizer: SpeechRecognizer? = null
     private var ready = false
+    private var generation = 0
+    private val handler = Handler(Looper.getMainLooper())
     private val tts = TextToSpeech(context) { ready = it == TextToSpeech.SUCCESS }
 
     fun listen(onResult: (String) -> Unit, onError: (String) -> Unit, onListening: () -> Unit) {
+        val attempt = ++generation
+        handler.removeCallbacksAndMessages(null)
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             onError("Speech recognition is unavailable on this phone. Use the large buttons or type below.")
             return
@@ -29,16 +35,24 @@ class SpeechController(private val context: Context) {
         }
         recognizer = SpeechRecognizer.createSpeechRecognizer(context, component).also { speech ->
             speech.setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) = onListening()
+                override fun onReadyForSpeech(params: Bundle?) { if (attempt == generation) onListening() }
                 override fun onResults(results: Bundle?) {
+                    if (attempt != generation) return
+                    generation++
+                    handler.removeCallbacksAndMessages(null)
                     val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
                     if (text.isNullOrBlank()) onError("I didn't hear that. Please try again or use the buttons.") else onResult(text)
                 }
-                override fun onError(error: Int) = onError(when (error) {
+                override fun onError(error: Int) {
+                    if (attempt != generation) return
+                    generation++
+                    handler.removeCallbacksAndMessages(null)
+                    onError(when (error) {
                     SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission is needed. You can still use the buttons."
                     SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Speech needs a connection on this phone. You can use the buttons offline."
                     else -> "I couldn't hear clearly. Please try again or use the buttons."
-                })
+                    })
+                }
                 override fun onBeginningOfSpeech() {}
                 override fun onRmsChanged(rmsdB: Float) {}
                 override fun onBufferReceived(buffer: ByteArray?) {}
@@ -52,6 +66,13 @@ class SpeechController(private val context: Context) {
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
             })
+            handler.postDelayed({
+                if (attempt == generation) {
+                    generation++
+                    speech.cancel()
+                    onError("Listening stopped after 15 seconds. Please try again or use the buttons.")
+                }
+            }, 15_000)
         }
     }
 
@@ -64,8 +85,8 @@ class SpeechController(private val context: Context) {
         tts.speak(if (mlAvailable && malayalam.isNotBlank()) malayalam else english, TextToSpeech.QUEUE_FLUSH, null, "orma-reply")
     }
 
-    fun stop() { recognizer?.cancel(); tts.stop() }
-    fun close() { recognizer?.destroy(); tts.shutdown() }
+    fun stop() { generation++; handler.removeCallbacksAndMessages(null); recognizer?.cancel(); tts.stop() }
+    fun close() { stop(); recognizer?.destroy(); tts.shutdown() }
 }
 
 /** Exclude our assistant adapter so it can never recursively bind to itself. */

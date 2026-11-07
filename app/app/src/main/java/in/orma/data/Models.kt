@@ -39,7 +39,7 @@ fun today(): String = LocalDate.now(KeralaZone).toString()
 @Serializable data class LogResult(val result: String, val status: DoseStatus, val reply: Reply)
 @Serializable data class Sharing(val counts: Boolean = false, val messages: Boolean = false, val risk: Boolean = false, val nurseNotes: Boolean = false)
 @Serializable data class DemoFixture(val members: List<Member>, val phrases: List<Understanding>)
-@Serializable data class LocalState(val doses: List<DoseRecord> = emptyList(), val sharing: Map<String, Sharing> = emptyMap())
+@Serializable data class LocalState(val doses: List<DoseRecord> = emptyList(), val sharing: Map<String, Sharing> = emptyMap(), val storageError: Boolean = false)
 
 fun verifiedEvidence(transcript: String, evidence: List<Evidence>): List<Evidence> =
     evidence.filter { it.span.isNotBlank() && transcript.contains(it.span) }

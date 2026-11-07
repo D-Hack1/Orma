@@ -17,7 +17,9 @@ object AppModule {
         val json = Json { ignoreUnknownKeys = true }
         val fixture = json.decodeFromString<DemoFixture>(context.assets.open("demo-fixture.json").bufferedReader().use { it.readText() })
         val prefs = context.getSharedPreferences("orma-demo", Context.MODE_PRIVATE)
-        val saved = prefs.getString("records", null)?.let { runCatching { json.decodeFromString<LocalState>(it) }.getOrNull() } ?: LocalState()
+        val saved = prefs.getString("records", null)?.let {
+            runCatching { json.decodeFromString<LocalState>(it) }.getOrElse { LocalState(storageError = true) }
+        } ?: LocalState()
         return StubOrmaApi(fixture, saved, persist = {
             check(prefs.edit().putString("records", json.encodeToString(LocalState.serializer(), it)).commit()) { "Could not save this record. Please try again." }
         })

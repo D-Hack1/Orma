@@ -22,4 +22,14 @@ class OrmaSmokeTest {
         compose.onNodeWithText("Achan", useUnmergedTree = true).performScrollTo().assertIsDisplayed()
         compose.onAllNodesWithText("Ammoomma").assertCountEquals(0)
     }
+
+    @Test fun assistedGroupLoggingShowsEvidenceThenBlocksADuplicate() {
+        compose.onNodeWithText("Speak", useUnmergedTree = true).performClick()
+        compose.onNodeWithTag("demo-phrase-0").performScrollTo().performClick()
+        compose.onNodeWithText("Confirm 3 tablets today · achan, amma · Morning").performScrollTo().performClick()
+        compose.onNodeWithTag("demo-phrase-0").performScrollTo().performClick()
+        compose.onNodeWithText("Confirm 3 tablets today · achan, amma · Morning").performScrollTo().performClick()
+        compose.onNodeWithText("Record already exists").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("A morning record already exists for Achan.", substring = true).assertExists()
+    }
 }

@@ -10,7 +10,11 @@ adb shell am start -n in.orma/.MainActivity
 ./gradlew.bat :app:connectedDebugAndroidTest
 ```
 
-On another machine, install SDK Platform 36 and set `ANDROID_HOME` or create an untracked `local.properties` with `sdk.dir=C:/path/to/Android/Sdk`.
+For a repeatable install, device smoke test and screenshot, run `./tools/check-emulator.ps1 -Build -DeviceTests`. On this machine, use `./tools/check-emulator.ps1 -Build -DeviceTests -BuildRoot U:/orma-build-cache/build -GradleHome U:/orma-build-cache` to keep generated output, Gradle caches and process-local temporary files on U:. The script restores temporary-directory environment variables when it finishes; no global settings change. Device tests grant this demo app microphone permission and create sample dose records.
+
+If Windows blocks local scripts, invoke it with a process-only policy: `powershell -NoProfile -ExecutionPolicy Bypass -File ./tools/check-emulator.ps1 -Build -DeviceTests -BuildRoot U:/orma-build-cache/build -GradleHome U:/orma-build-cache`. This leaves the machine's execution policy unchanged.
+
+On another machine, install SDK Platform 36 and set `ANDROID_HOME` or create an untracked `local.properties` with `sdk.dir=C\:/path/to/Android/Sdk`.
 
 ## Current build
 
@@ -18,9 +22,11 @@ This is an explicitly labelled **local demo**, using `StubOrmaApi`. It does not 
 
 Try the Supporter, Assisted, Independent, and Nurse roles using the header. The family dashboard excludes Farhan, who has no family link. The nurse list includes only Achan and Amma. Sharing controls are shown only in the Assisted role; role switching is a demo facility, not authentication.
 
-The Speak screen tries Android Malayalam speech recognition, with text/tap fallback if the service or language is missing. Only the exact sample phrases in `app/src/main/assets/demo-fixture.json` are understood in this version. A recognised log asks for confirmation; incomplete or unfamiliar text does not log anything. Use the large member, slot and count controls for arbitrary entries.
+The Speak screen tries Android Malayalam speech recognition, with text/tap fallback if the service or language is missing. Sample phrases live in `app/src/main/assets/demo-fixture.json`. A conservative offline matcher also understands explicit Malayalam/Manglish member names, dose slots, counts and taken verbs. It rejects negative or conflicting statements and asks for missing details. A recognised log requires confirmation; unfamiliar text does not write a record. Speech stops after 15 seconds and ignores callbacks from older listening attempts.
 
 Local dose writes are serialised and persisted before success is reported. A partial record also blocks a subsequent log until an explicit reconciliation workflow exists. No record produces an explicit unknown answer. Every positive status answer cites its saved record ID. Sharing defaults hide counts in supporter/nurse cards and explanations.
+
+Independent mode includes a silent sample notification with Taken and Later (30 minutes) actions. The Taken action persists the sample dose without opening an activity and applies the same duplicate guard. There is also a one-minute sample alarm and Android's exact-alarm permission setup; without permission Android may delay the alarm. These are demo controls, not a configured daily prescription schedule. Reboot restoration, due-dose scheduling from confirmed prescriptions and reason-specific snoozes remain pending.
 
 ## Assistant check
 
