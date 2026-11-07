@@ -1,0 +1,17 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function owner(f, m) {
+      let access = firestore.get(/databases/(default)/documents/families/$(f)/access/$(request.auth.uid)).data;
+      let member = firestore.get(/databases/(default)/documents/families/$(f)/members/$(m)).data;
+      return access.active == true && m in access.memberIds && member.ownerUid == request.auth.uid;
+    }
+    match /families/{f}/members/{m}/uploads/{file} {
+      allow read: if request.auth != null && owner(f, m);
+      allow create: if request.auth != null && owner(f, m) && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('(image/(jpeg|png|webp)|audio/(mpeg|mp4|aac|wav))');
+    }
+    // Derived reports/audio require a fresh callable authorization check, never a public download token.
+    match /{path=**} { allow read, write: if false; }
+  }
+}

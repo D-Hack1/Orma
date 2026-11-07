@@ -1,0 +1,13 @@
+{
+  "functions": [{ "source": "backend/functions", "codebase": "orma", "runtime": "nodejs22", "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"], "ignore": ["node_modules", "test", "*.log"] }],
+  "firestore": { "rules": "backend/firestore.rules", "indexes": "backend/firestore.indexes.json" },
+  "storage": { "rules": "backend/storage.rules" },
+  "emulators": {
+    "auth": { "host": "127.0.0.1", "port": 9099 },
+    "functions": { "host": "127.0.0.1", "port": 5001 },
+    "firestore": { "host": "127.0.0.1", "port": 8080 },
+    "storage": { "host": "127.0.0.1", "port": 9199 },
+    "ui": { "enabled": true, "host": "127.0.0.1", "port": 4000 },
+    "singleProjectMode": true
+  }
+}
