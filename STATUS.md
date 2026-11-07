@@ -4,7 +4,15 @@
 - [x] Reviewed directories against `plan.md` and `worksplit.md`.
 - [x] Created the Android project folders under `app/`, backend modules under `backend/`, shared `contracts/`, and `ml/out/`.
 - [x] Added `.gitkeep` placeholders so Git preserves empty leaf directories.
-- Only the folder scaffold exists; planned source, configuration, and contract files are not implemented yet.
+- Folder scaffold verified; app implementation progress is tracked separately in `app/STATUS.md`.
+
+### Updated plan alignment — 2026-11-07
+- Added Android `feature/prescription` (A1.10b), `feature/citations` (A1.10c), and `feature/sharing` (A1.10d).
+- Added Android `feature/medicinecheck` for strip and pill-box checks (A1.18b), plus `feature/summary` and `feature/report` (A1.18c).
+- Added shared Android `core/camera` for prescription and medicine photo capture.
+- Added backend `answers` for grounded answers, `vision` for prescription/strip/pill-box processing, `sharing` for sharing controls, `summaries` for daily digests, and `reports` for doctor reports, under `backend/functions/src/`.
+- Existing `telephony` covers conversational call turns; `contracts/` and `ml/` retain their planned locations.
+- Verified all 12 new directories and their `.gitkeep` placeholders. Existing app implementation files and planning documents were preserved.
 
 ## Agent 1 — app
 - [ ] A1.1 Android project scaffold and build configuration.
