@@ -31,9 +31,10 @@ describe('callable safety boundary', () => {
     expect(mocks.status).toHaveBeenCalledWith({}, expect.objectContaining(key), expect.objectContaining({ role: 'member', uid: 'achan-uid' }));
   });
   it('returns a privacy-filtered deterministic reply after logging', async () => {
-    mocks.log.mockResolvedValue({ result: 'logged', status: 'confirmed' });
+    mocks.log.mockResolvedValue({ result: 'logged', status: 'confirmed', reply: { textEn: 'Recorded safely.' } });
     const result = await logDose.run(request({ ...key, countTaken: 1, source: 'tap' }));
-    expect(result).toMatchObject({ result: 'logged', reply: { textEn: 'Please wait.' } });
+    expect(result).toMatchObject({ result: 'logged', reply: { textEn: 'Recorded safely.' } });
+    expect(mocks.status).not.toHaveBeenCalled();
     expect(mocks.access).toHaveBeenCalledWith('achan-uid', 'demo-family', 'achan');
   });
   it('does not leak internal errors', async () => {

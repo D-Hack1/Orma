@@ -19,11 +19,7 @@ async function handle(request: CallableRequest, action: 'log' | 'status' | 'expl
     const viewer = actor(context);
     if (action === 'explain') return await readExplanation(db, explainSchema.parse(request.data), viewer);
     if (action === 'status') return await readStatus(db, askStatusSchema.parse(request.data), viewer);
-    const result = await recordDose(db, logDoseSchema.parse(request.data), viewer);
-    // Read through the same privacy-filtered reply engine; never manufacture dose facts here.
-    const reply = await readStatus(db, key, viewer);
-    return { ...result, reply: { templateId: result.result === 'duplicate_blocked' ? 'duplicate_blocked' : result.status,
-      vars: {}, textMl: reply.textMl, textEn: reply.textEn } };
+    return await recordDose(db, logDoseSchema.parse(request.data), viewer);
   } catch (error) {
     if (error instanceof HttpsError) throw error;
     if (error instanceof ZodError) throw new HttpsError('invalid-argument', 'Check the member, date, slot and dose fields.');

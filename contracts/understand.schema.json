@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OrmaUnderstanding",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["transcript", "intent", "members", "slot", "count", "medicines", "snoozeReason", "messageTo", "messageText", "urgency", "needsClarification", "clarifyQuestion", "evidence", "sharingChanges", "memberActions"],
+  "properties": {
+    "transcript": {"type": "string"},
+    "intent": {"type": "string", "enum": ["log", "ask", "message", "snooze", "explain", "why", "setSharing", "unclear"]},
+    "members": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "slot": {"type": ["string", "null"], "enum": ["morning", "noon", "night", null]},
+    "count": {"type": ["integer", "null"], "minimum": 0, "maximum": 99},
+    "medicines": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "snoozeReason": {"type": ["string", "null"], "enum": ["not_eaten", "not_home", "later", null]},
+    "messageTo": {"type": ["string", "null"]},
+    "messageText": {"type": ["string", "null"]},
+    "urgency": {"type": "string", "enum": ["normal", "urgent"]},
+    "needsClarification": {"type": "boolean"},
+    "clarifyQuestion": {"type": ["string", "null"]},
+    "evidence": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["field", "span"], "properties": {"field": {"type": "string"}, "span": {"type": "string", "minLength": 1}}}},
+    "sharingChanges": {"type": ["object", "null"], "additionalProperties": false, "required": ["supporterId", "counts", "messages", "risk", "askedTwice", "nurseNotes"], "properties": {"supporterId": {"type": ["string", "null"]}, "counts": {"type": ["boolean", "null"]}, "messages": {"type": ["boolean", "null"]}, "risk": {"type": ["boolean", "null"]}, "askedTwice": {"type": ["boolean", "null"]}, "nurseNotes": {"type": ["boolean", "null"]}}},
+    "memberActions": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["memberId", "taken", "count", "medicines"], "properties": {"memberId": {"type": "string"}, "taken": {"type": "boolean"}, "count": {"type": ["integer", "null"], "minimum": 0, "maximum": 99}, "medicines": {"type": "array", "items": {"type": "string"}}}}}
+  }
+}

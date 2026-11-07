@@ -4,3 +4,4 @@ setGlobalOptions({ region: "asia-south1", maxInstances: 10 });
 
 export { setSharing } from "./platform/sharing";
 export { logDose, askStatus, answer, explain } from './api';
+export { understand } from './ai';
