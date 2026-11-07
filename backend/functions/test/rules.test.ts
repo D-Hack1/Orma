@@ -69,6 +69,38 @@ test("stale generated answers and per-supporter overrides revoke reads", async (
   await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), `${base}/members/amma/settings/sharing`), { counts: true, perSupporter: { rahul: { counts: false } }, version: 2 }));
   await assertFails(getDoc(doc(db, path)));
 });
+test("stock and risk alerts require the corresponding live sharing permission", async () => {
+  const db = env.authenticatedContext("rahul").firestore();
+  for (const type of ["stock", "risk"]) {
+    const path = `${base}/views/rahul/members/amma/alerts/${type}`;
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), path), { type, rule: "Optional health alert" }));
+    await assertFails(getDoc(doc(db, path)));
+  }
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), `${base}/members/amma/settings/sharing`), { counts: true, risk: true, version: 1 }));
+  await assertSucceeds(getDoc(doc(db, `${base}/views/rahul/members/amma/alerts/stock`)));
+  await assertSucceeds(getDoc(doc(db, `${base}/views/rahul/members/amma/alerts/risk`)));
+});
+test("an owner's directly addressed message is private to its recipient and current sharing version", async () => {
+  const path = `${base}/views/rahul/members/amma/messages/direct`;
+  const db = env.authenticatedContext("rahul").firestore();
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), path), {
+    from: "amma", to: ["rahul"], directDelivery: true, sharingVersion: 1, text: "Please call me",
+  }));
+  await assertSucceeds(getDoc(doc(db, path)));
+  await assertFails(getDoc(doc(env.authenticatedContext("mini").firestore(), path)));
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), path), {
+    from: "mini", to: ["rahul"], directDelivery: true, sharingVersion: 1, text: "Not owner authorized",
+  }));
+  await assertFails(getDoc(doc(db, path)));
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), path), {
+    from: "amma", to: ["mini"], directDelivery: true, sharingVersion: 1, text: "Not addressed to Rahul",
+  }));
+  await assertFails(getDoc(doc(db, path)));
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), path), {
+    from: "amma", to: ["rahul"], directDelivery: true, sharingVersion: 0, text: "Revoked",
+  }));
+  await assertFails(getDoc(doc(db, path)));
+});
 test("all client dose, sharing, projection and FL writes denied; anonymous reads denied", async () => {
   for (const path of [`${base}/members/amma/doses/a`, `${base}/members/amma/settings/sharing`, `${base}/views/amma/members/amma`, "flUpdates/1/clients/a", "flModels/latest"]) {
     await assertFails(setDoc(doc(env.authenticatedContext("amma").firestore(), path), { hacked: true }));

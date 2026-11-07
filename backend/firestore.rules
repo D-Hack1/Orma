@@ -35,12 +35,18 @@ service cloud.firestore {
         }
         match /alerts/{id} {
           allow read: if signedIn() && request.auth.uid == viewer && assigned(f, m)
-            && resource.data.keys().hasOnly(['type', 'rule', 'date', 'slot', 'at']);
+            && resource.data.keys().hasOnly(['type', 'rule', 'date', 'slot', 'at'])
+            && (resource.data.get('type', '') != 'stock' || shared(f, m, 'counts'))
+            && (resource.data.get('type', '') != 'risk' || shared(f, m, 'risk'));
         }
         match /{collection}/{id} {
           allow read: if signedIn() && request.auth.uid == viewer && assigned(f, m)
             && ((collection == 'schedule' && shared(f, m, 'counts'))
-              || (collection == 'messages' && shared(f, m, 'messages'))
+              || (collection == 'messages' && current(f, m)
+                && (shared(f, m, 'messages')
+                  || (resource.data.get('directDelivery', false) == true
+                    && request.auth.uid in resource.data.get('to', [])
+                    && resource.data.get('from', '') == member(f, m).ownerUid)))
               || (collection == 'risk' && shared(f, m, 'risk'))
               || (collection == 'notes' && shared(f, m, 'nurseNotes'))
               || (collection in ['answers', 'digests', 'reports'] && current(f, m)));

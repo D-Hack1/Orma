@@ -9,7 +9,7 @@ service firebase.storage {
     match /families/{f}/members/{m}/uploads/{file} {
       allow read: if request.auth != null && owner(f, m);
       allow create: if request.auth != null && owner(f, m) && request.resource.size <= 10 * 1024 * 1024
-        && request.resource.contentType.matches('(image/(jpeg|png|webp)|audio/(mpeg|mp4|aac|wav))');
+        && request.resource.contentType.matches('(image/(jpeg|png|webp)|audio/(mpeg|mp4|aac|wav|ogg))');
     }
     // Derived reports/audio require a fresh callable authorization check, never a public download token.
     match /{path=**} { allow read, write: if false; }
