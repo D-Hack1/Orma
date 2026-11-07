@@ -41,9 +41,9 @@ The fixture supplies the Auth UIDs (`achan-uid`, `amma-uid`, `anu`, `rahul`, `mi
 * `resolveMemberAccess(uid, familyId, memberId)` — verifies active `access/{uid}` membership plus owner/supporter/assigned-nurse or recorded-guardian authority. Returns `{uid,familyId,memberId,memberRef,member,access,sharing,isOwner,isGuardian,isNurse,isSupporter}`. It **does not** grant access to every canonical field; use `sharingAllowed(context, field)` when building fact packs/projections for nonowners.
 * `sharingAllowed(context, counts|messages|risk|askedTwice|nurseNotes)` — member ownership bypasses optional sharing; other callers use per-supporter override then global default. Guardian authority manages consent, not an automatic health-data read bypass.
 
-The entry point exports `understand`, `logDose`, `askStatus`, `answer`, `explain`, and `setSharing`. Production callables require App Check. Sharing input is `{familyId,memberId,changes:{supporterId?,counts?,messages?,risk?,askedTwice?,nurseNotes?}}`. Only the member or an already-recorded guardian with nonempty capacity note can call it; neither supporters nor clients can appoint guardians. It increments `settings/sharing.version`, then synchronously deletes the member's viewer projection trees before acknowledging. `askStatus` and `logDose` repopulate safe status views on subsequent use. Deleted content already downloaded to a client cannot be recalled; clear revoked client caches too.
+The full endpoint and Android reconciliation handoff is in **`backend/AGENT1_HANDOFF.md`**; real-project setup is in **`backend/DEPLOYMENT.md`**. Production callables require App Check. Sharing input is `{familyId,memberId,changes:{supporterId?,counts?,messages?,risk?,askedTwice?,nurseNotes?}}`. Only the member or an already-recorded guardian with nonempty capacity note can call it; neither supporters nor clients can appoint guardians. It increments `settings/sharing.version`, then synchronously deletes the member's viewer projection trees before acknowledging. `askStatus` and `logDose` repopulate safe status views on subsequent use. Deleted content already downloaded to a client cannot be recalled; clear revoked client caches too.
 
-`askStatus`/`answer` currently require explicit `date` and `slot`; resolve question-only requests through `understand` and ask for clarification when ambiguous. Replies use conservative, bilingual fact templates. The optional grounded generator hook is not connected to live Gemini wording. Telephony, vision, messaging, summaries/reports and live FL aggregation contracts are authored but their endpoints are not implemented in this checkpoint.
+`askStatus`/`answer` use explicit `date` and `slot`; unresolved question-only requests ask for clarification instead of guessing. Replies use viewer-filtered facts, a bounded Gemini adapter with strict validation, and bilingual fallback templates. Answers are saved under the current sharing version. Telephony, vision, scheduling, messaging, dose support, summaries/reports, private media and FL aggregation are now implemented and exported; provider tests remain mocked, not live passes. Shared physical medicine stock is updated atomically across slots and inconsistent copies require reconciliation.
 
 Canonical member roots and health subcollections are owner-only client reads, all writes server-only. Nurses/supporters read `families/{familyId}/views/{theirUid}/members/{memberId}` with current active membership and nurse assignment. Server code is trusted and must sanitize everything it publishes:
 
@@ -51,16 +51,16 @@ Canonical member roots and health subcollections are owner-only client reads, al
 |---|---|
 | Member root | `{name,mode}` only |
 | `doses/{date_slot}` | `{date,slot,status}` only by default; counts-enabled adds only `countTaken,countExpected,medicinesTaken` |
-| `alerts/{id}` | `{type,rule,date,slot,at}` only; no count/transcript in text |
+| `alerts/{id}` | `{type,rule,date,slot,at}` only; stock/risk require current counts/risk sharing; no private prose |
 | `schedule/{slot}` | `counts` sharing |
-| `messages/{id}` | `messages` sharing |
+| `messages/{id}` | Current version plus `messages` sharing, or an owner-authored directly addressed message to this viewer |
 | `risk/{id}` | `risk` sharing; never publish raw private features |
 | `notes/{id}` | `nurseNotes` sharing |
 | `answers`, `digests`, `reports` | `sharingVersion` must equal current settings version (default 0); generation must use viewer-filtered facts |
 
 Do not add `sharingVersion`, evidence, source snippets, or arbitrary extra fields to dose projections: the rules intentionally deny the entire read. Firestore cannot redact individual fields. Removing membership/assignment immediately blocks stale projections. Model reads require Auth; `flUpdates`, devices/calls/global alerts and all mutations remain server-only.
 
-Storage accepts only new owner uploads at `families/{familyId}/members/{memberId}/uploads/{filename}` (JPEG/PNG/WebP or supported audio, ≤10 MiB). It denies updates/deletes and **all direct export/report/audio reads**; a future download callable must reauthorize current sharing before streaming. Do not issue persistent download tokens/public URLs. Supporter/nurse upload flows are not enabled by these rules.
+Storage accepts only new owner uploads at `families/{familyId}/members/{memberId}/uploads/{filename}` (JPEG/PNG/WebP or supported audio including OGG, ≤10 MiB). It denies updates/deletes and **all direct export/report/audio reads**; `downloadMedia` reauthorizes current sharing and returns bounded base64 bytes (≤6 MiB file), not a permanent URL. Do not issue persistent download tokens/public URLs. Supporter/nurse upload flows are not enabled by these rules. Call audio has a separate session-bound signed URL with at most 30 seconds of revocation lag.
 
 ## Cloud setup is a human checkpoint
 

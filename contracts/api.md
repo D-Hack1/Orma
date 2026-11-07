@@ -134,6 +134,20 @@ Authenticated consented eligible T1 device; server derives family/consent and pr
 {"request":{"deviceId":"home-phone","modelVersion":"v0","delta":[0.01,0,0,0,0,0,0,0,0,0,0],"n":30},"response":{"accepted":true,"round":1}}
 ```
 
+## Additional media and alert callables
+
+Additional callable `downloadMedia({gsUrl})` returns `{bytesBase64,mimeType}` for a current viewer's version-authorized export (≤6 MiB file, not a public URL). The path must be in the configured bucket under `families/{familyId}/members/{memberId}/exports/{callerUid}/...`; arbitrary HTTP, cross-member paths and token URLs are rejected. Uploads are immutable owner-only `uploads/{filename}`, ≤10 MiB, JPEG/PNG/WebP or audio/mpeg, mp4, aac, wav, ogg. English PDF reports disclose unsupported-script omissions; Malayalam PDF currently returns failed-precondition rather than corrupted output.
+
+```json
+{"request":{"gsUrl":"gs://demo-private/families/demo-family/members/amma/exports/anu/report.pdf"},"response":{"bytesBase64":"JVBERi0=","mimeType":"application/pdf"}}
+```
+
+The example bytes illustrate encoding only, not a complete PDF. `ackAlert` is an additional callable: it verifies current member/family authorization and optional stock/risk sharing, preserves the first acknowledgement actor/time, and stops later escalation.
+
+```json
+{"request":{"familyId":"demo-family","memberId":"amma","alertId":"alert1"},"response":{"acknowledged":true}}
+```
+
 ## Internal scheduled / task functions
 
 These are **not public callables**. Scheduler/Cloud Tasks verified service identity; manual invocation only trusted admin tooling. Task redelivery must be idempotent. Counters below are diagnostic return values, not mobile API dependencies.
